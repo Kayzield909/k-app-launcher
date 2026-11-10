@@ -18,15 +18,16 @@
     repo: "https://github.com/Kayzield909/aatrox-capital",
     t212: "https://app.trading212.com/"
   };
+  window.AATROX_AUTO = false;
   (function () {
     const q = new URLSearchParams(location.search);
     const go = q.get("go");
     let auto = false;
     try { auto = localStorage.getItem("aatrox-auto") === "1"; } catch (e) {}
-    const launched = q.get("source") === "pwa" && !sessionStorage.getItem("aatrox-shown");
-    try { sessionStorage.setItem("aatrox-shown", "1"); } catch (e) {}
+    let launched = q.get("source") === "pwa";
+    try { launched = launched && !sessionStorage.getItem("aatrox-shown"); sessionStorage.setItem("aatrox-shown", "1"); } catch (e) {}
     if (go && LINKS[go]) location.replace(LINKS[go]);
-    else if (auto && launched) location.replace(LINKS.dashboard);
+    else if (auto && launched) window.AATROX_AUTO = true;
   })();
 </script>
 <style>
@@ -66,9 +67,47 @@
   .opt { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 22px; padding: 4px 2px; color: var(--muted); font-size: .85rem; }
   .opt input { width: 44px; height: 24px; accent-color: var(--red); }
   footer { margin-top: 18px; color: var(--muted); font-size: .75rem; line-height: 1.5; }
+
+  /* Launch animation: the mark draws itself (chart dips to the support line, bounces, peaks), then the menu rises in. */
+  #intro { position: fixed; inset: 0; background: var(--bg); display: grid; place-items: center; z-index: 10;
+           transition: opacity .35s ease .05s; }
+  #intro.done { opacity: 0; pointer-events: none; }
+  #intro svg { width: 128px; height: 128px; overflow: visible; transition: transform .55s cubic-bezier(.2,.8,.2,1); }
+  #intro .sup { stroke: var(--gold); stroke-width: 3; stroke-dasharray: 4.5 3; fill: none; opacity: 0;
+                animation: supIn .35s ease-out .05s forwards, supSlide 1.2s linear .05s infinite; }
+  #intro .chart { stroke: var(--red); stroke-width: 7; fill: none; stroke-linecap: round; stroke-linejoin: round;
+                  stroke-dasharray: 160; stroke-dashoffset: 160; animation: draw .9s cubic-bezier(.5,.05,.3,1) .25s forwards; }
+  #intro .dot { fill: var(--gold); transform-box: fill-box; transform-origin: center; transform: scale(0);
+                animation: pop .45s cubic-bezier(.3,1.8,.5,1) .62s forwards; }
+  @keyframes supIn { to { opacity: 1; } }
+  @keyframes supSlide { to { stroke-dashoffset: -15; } }
+  @keyframes draw { to { stroke-dashoffset: 0; } }
+  @keyframes pop { 60% { transform: scale(1.35); } to { transform: scale(1); } }
+  main > * { opacity: 0; transform: translateY(14px); }
+  body.ready main > * { animation: rise .45s cubic-bezier(.2,.8,.2,1) forwards; }
+  body.ready main > *:nth-child(1) { animation-delay: 0s; }
+  body.ready main > *:nth-child(2) { animation-delay: .05s; }
+  body.ready main > *:nth-child(3) { animation-delay: .1s; }
+  body.ready main > *:nth-child(4) { animation-delay: .15s; }
+  body.ready main > *:nth-child(5) { animation-delay: .2s; }
+  body.ready main > *:nth-child(6) { animation-delay: .25s; }
+  body.ready main > *:nth-child(n+7) { animation-delay: .3s; }
+  @keyframes rise { to { opacity: 1; transform: none; } }
+  @media (prefers-reduced-motion: reduce) {
+    #intro { display: none; }
+    main > * { opacity: 1; transform: none; }
+    body.ready main > * { animation: none; }
+  }
 </style>
 </head>
 <body>
+<div id="intro" aria-hidden="true">
+  <svg viewBox="0 0 100 100">
+    <line class="sup" x1="15" y1="63" x2="85" y2="63"/>
+    <polyline class="chart" points="26,78 37,50 43,63 50,22 74,78"/>
+    <circle class="dot" cx="43" cy="63" r="4.6"/>
+  </svg>
+</div>
 <main>
   <header>
     <img src="icons/icon-192.png" alt="">
@@ -117,6 +156,23 @@
   try { box.checked = localStorage.getItem("aatrox-auto") === "1"; } catch (e) {}
   box.addEventListener("change", () => { try { localStorage.setItem("aatrox-auto", box.checked ? "1" : "0"); } catch (e) {} });
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
+  // Finish the launch animation: fly the mark to the header icon, fade the cover, rise the menu in.
+  (function () {
+    const intro = document.getElementById("intro");
+    const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const finish = () => {
+      if (window.AATROX_AUTO) { location.replace(LINKS.dashboard); return; }
+      const svg = intro.querySelector("svg"), target = document.querySelector("header img");
+      const a = svg.getBoundingClientRect(), b = target.getBoundingClientRect();
+      const k = b.width / a.width;
+      svg.style.transform = `translate(${b.left + b.width / 2 - (a.left + a.width / 2)}px, ${b.top + b.height / 2 - (a.top + a.height / 2)}px) scale(${k})`;
+      document.body.classList.add("ready");
+      setTimeout(() => intro.classList.add("done"), 300);
+      setTimeout(() => intro.remove(), 800);
+    };
+    if (reduce) { document.body.classList.add("ready"); intro.remove(); if (window.AATROX_AUTO) location.replace(LINKS.dashboard); return; }
+    setTimeout(finish, 1250);
+  })();
 </script>
 </body>
 </html>
