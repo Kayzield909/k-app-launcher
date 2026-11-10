@@ -3,176 +3,57 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src https://api.github.com; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta name="referrer" content="no-referrer">
 <meta name="robots" content="noindex, nofollow">
 <meta name="theme-color" content="#141110">
 <title>Aatrox</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/favicon-64.png" type="image/png">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
-<script>
-  // Shortcut links (?go=...) and "open dashboard on launch" jump straight to the target.
-  const LINKS = {
-    dashboard: "https://claude.ai/artifact/TcP9PAnqqYBuxmdXHWeQTT",
-    sync: "https://github.com/Kayzield909/aatrox-capital/actions/workflows/t212-sync.yml",
-    log: "https://github.com/Kayzield909/aatrox-capital/blob/main/SIGNAL_LOG.md",
-    repo: "https://github.com/Kayzield909/aatrox-capital",
-    t212: "https://app.trading212.com/"
-  };
-  window.AATROX_AUTO = false;
-  (function () {
-    const q = new URLSearchParams(location.search);
-    const go = q.get("go");
-    let auto = false;
-    try { auto = localStorage.getItem("aatrox-auto") === "1"; } catch (e) {}
-    let launched = q.get("source") === "pwa";
-    try { launched = launched && !sessionStorage.getItem("aatrox-shown"); sessionStorage.setItem("aatrox-shown", "1"); } catch (e) {}
-    if (go && LINKS[go]) location.replace(LINKS[go]);
-    else if (auto && launched) window.AATROX_AUTO = true;
-  })();
-</script>
-<style>
-  :root {
-    --bg: #141110; --panel: #1f1a18; --line: #352c28; --fg: #f3ece6; --muted: #a89a91;
-    --red: #ce4630; --gold: #e4b550;
-    color-scheme: dark;
-  }
-  * { box-sizing: border-box; }
-  html, body { margin: 0; background: var(--bg); color: var(--fg); }
-  body {
-    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-    min-height: 100dvh; padding: max(24px, env(safe-area-inset-top)) 16px max(24px, env(safe-area-inset-bottom));
-    display: flex; flex-direction: column; align-items: center;
-  }
-  main { width: 100%; max-width: 26rem; }
-  header { display: flex; align-items: center; gap: 14px; margin: 8px 0 28px; }
-  header img { width: 52px; height: 52px; border-radius: 12px; border: 1px solid var(--line); }
-  h1 { font-size: 1.35rem; font-weight: 650; margin: 0; letter-spacing: .01em; }
-  header p { margin: 2px 0 0; color: var(--muted); font-size: .85rem; }
-  a.tile {
-    display: flex; align-items: center; gap: 14px; text-decoration: none; color: inherit;
-    background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
-    padding: 16px; margin-bottom: 10px; min-height: 64px;
-    -webkit-tap-highlight-color: transparent; transition: border-color .15s, transform .1s;
-  }
-  a.tile:active { transform: scale(.985); }
-  a.tile:hover, a.tile:focus-visible { border-color: var(--gold); outline: none; }
-  a.tile.primary { border-color: var(--red); padding: 20px 16px; }
-  .ic { width: 36px; height: 36px; flex: none; display: grid; place-items: center; border-radius: 10px; background: #2a221f; }
-  .ic svg { width: 20px; height: 20px; stroke: var(--gold); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-  .primary .ic { background: var(--red); }
-  .primary .ic svg { stroke: #fff; }
-  .t { font-weight: 600; font-size: 1rem; }
-  .s { color: var(--muted); font-size: .8rem; margin-top: 2px; }
-  .arrow { margin-left: auto; color: var(--muted); }
-  .opt { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 22px; padding: 4px 2px; color: var(--muted); font-size: .85rem; }
-  .opt input { width: 44px; height: 24px; accent-color: var(--red); }
-  footer { margin-top: 18px; color: var(--muted); font-size: .75rem; line-height: 1.5; }
-
-  /* Launch animation: the mark draws itself (chart dips to the support line, bounces, peaks), then the menu rises in. */
-  #intro { position: fixed; inset: 0; background: var(--bg); display: grid; place-items: center; z-index: 10;
-           transition: opacity .35s ease .05s; }
-  #intro.done { opacity: 0; pointer-events: none; }
-  #intro svg { width: 128px; height: 128px; overflow: visible; transition: transform .55s cubic-bezier(.2,.8,.2,1); }
-  #intro .sup { stroke: var(--gold); stroke-width: 3; stroke-dasharray: 4.5 3; fill: none; opacity: 0;
-                animation: supIn .35s ease-out .05s forwards, supSlide 1.2s linear .05s infinite; }
-  #intro .chart { stroke: var(--red); stroke-width: 7; fill: none; stroke-linecap: round; stroke-linejoin: round;
-                  stroke-dasharray: 160; stroke-dashoffset: 160; animation: draw .9s cubic-bezier(.5,.05,.3,1) .25s forwards; }
-  #intro .dot { fill: var(--gold); transform-box: fill-box; transform-origin: center; transform: scale(0);
-                animation: pop .45s cubic-bezier(.3,1.8,.5,1) .62s forwards; }
-  @keyframes supIn { to { opacity: 1; } }
-  @keyframes supSlide { to { stroke-dashoffset: -15; } }
-  @keyframes draw { to { stroke-dashoffset: 0; } }
-  @keyframes pop { 60% { transform: scale(1.35); } to { transform: scale(1); } }
-  main > * { opacity: 0; transform: translateY(14px); }
-  body.ready main > * { animation: rise .45s cubic-bezier(.2,.8,.2,1) forwards; }
-  body.ready main > *:nth-child(1) { animation-delay: 0s; }
-  body.ready main > *:nth-child(2) { animation-delay: .05s; }
-  body.ready main > *:nth-child(3) { animation-delay: .1s; }
-  body.ready main > *:nth-child(4) { animation-delay: .15s; }
-  body.ready main > *:nth-child(5) { animation-delay: .2s; }
-  body.ready main > *:nth-child(6) { animation-delay: .25s; }
-  body.ready main > *:nth-child(n+7) { animation-delay: .3s; }
-  @keyframes rise { to { opacity: 1; transform: none; } }
-  @media (prefers-reduced-motion: reduce) {
-    #intro { display: none; }
-    main > * { opacity: 1; transform: none; }
-    body.ready main > * { animation: none; }
-  }
-</style>
+<link rel="stylesheet" href="styles.css">
+<script src="app.js" defer></script>
 </head>
 <body>
 <div id="intro" aria-hidden="true">
   <svg viewBox="0 0 100 100">
-    <line class="sup" x1="15" y1="63" x2="85" y2="63"/>
-    <polyline class="chart" points="26,78 37,50 43,63 50,22 74,78"/>
-    <circle class="dot" cx="43" cy="63" r="4.6"/>
+    <line class="mk-sup" x1="15" y1="63" x2="85" y2="63"/>
+    <polyline class="mk-chart" points="26,78 37,50 43,63 50,22 74,78"/>
+    <circle class="mk-dot" cx="43" cy="63" r="4.6"/>
   </svg>
 </div>
-<main>
-  <header>
-    <img src="icons/icon-192.png" alt="">
-    <div>
-      <h1>Aatrox Capital</h1>
-      <p>Rules-based scorecard</p>
-    </div>
+
+<div id="onboard" class="hidden"></div>
+
+<div id="app" class="hidden">
+  <header id="top">
+    <svg class="brand" viewBox="0 0 100 100" aria-hidden="true">
+      <line class="mk-sup" x1="15" y1="63" x2="85" y2="63"/>
+      <polyline class="mk-chart" points="26,78 37,50 43,63 50,22 74,78"/>
+      <circle class="mk-dot" cx="43" cy="63" r="4.6"/>
+    </svg>
+    <h1 id="title">Signals</h1>
+    <div class="asof" id="asof"></div>
+    <button class="iconbtn" id="refresh" aria-label="Refresh">
+      <svg viewBox="0 0 24 24"><path d="M20 11a8 8 0 0 0-14.3-4.9L4 8M4 4v4h4M4 13a8 8 0 0 0 14.3 4.9L20 16M20 20v-4h-4"/></svg>
+    </button>
   </header>
+  <div id="ptr" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 5v14M6 13l6 6 6-6"/></svg></div>
+  <div id="banner" class="hidden" role="status"></div>
+  <main id="view"></main>
+  <nav id="tabs" role="tablist">
+    <button role="tab" data-tab="signals" aria-selected="true">
+      <svg viewBox="0 0 24 24"><path d="M3 20h18M5 16l4-5 3 3 5-7 2 3"/></svg>Signals</button>
+    <button role="tab" data-tab="swing" aria-selected="false">
+      <svg viewBox="0 0 24 24"><path d="M3 15h18" stroke-dasharray="3 3"/><path d="M4 19l5-9 3 5 4-11 4 15"/></svg>Swing</button>
+    <button role="tab" data-tab="holdings" aria-selected="false">
+      <svg viewBox="0 0 24 24"><path d="M4 7h16v12H4zM8 7V5h8v2M4 12h16"/></svg>Holdings</button>
+    <button role="tab" data-tab="log" aria-selected="false">
+      <svg viewBox="0 0 24 24"><path d="M7 4h10v16H7zM10 8h4M10 12h4M10 16h2"/></svg>Log</button>
+  </nav>
+</div>
 
-  <a class="tile primary" data-go="dashboard">
-    <span class="ic"><svg viewBox="0 0 24 24"><path d="M3 20h18M5 16l4-5 3 3 5-7 2 3"/></svg></span>
-    <span><div class="t">Dashboard</div><div class="s">Scores, swing setups, every-holding scan</div></span>
-    <span class="arrow">›</span>
-  </a>
-  <a class="tile" data-go="sync">
-    <span class="ic"><svg viewBox="0 0 24 24"><path d="M20 11a8 8 0 0 0-14.3-4.9L4 8M4 4v4h4M4 13a8 8 0 0 0 14.3 4.9L20 16M20 20v-4h-4"/></svg></span>
-    <span><div class="t">Trading 212 sync</div><div class="s">Run it now from GitHub Actions</div></span>
-    <span class="arrow">›</span>
-  </a>
-  <a class="tile" data-go="log">
-    <span class="ic"><svg viewBox="0 0 24 24"><path d="M7 4h10v16H7zM10 8h4M10 12h4M10 16h2"/></svg></span>
-    <span><div class="t">Signal log</div><div class="s">Week-by-week signal changes</div></span>
-    <span class="arrow">›</span>
-  </a>
-  <a class="tile" data-go="t212">
-    <span class="ic"><svg viewBox="0 0 24 24"><path d="M4 7h16v12H4zM8 7V5h8v2M4 12h16"/></svg></span>
-    <span><div class="t">Trading 212</div><div class="s">Open your account</div></span>
-    <span class="arrow">›</span>
-  </a>
-  <a class="tile" data-go="repo">
-    <span class="ic"><svg viewBox="0 0 24 24"><path d="M6 3v12M18 9a3 3 0 1 0 0-.01M6 21a3 3 0 1 0 0-.01M18 12c0 4-6 3-12 6"/></svg></span>
-    <span><div class="t">Repository</div><div class="s">Engine, runbook, data</div></span>
-    <span class="arrow">›</span>
-  </a>
-
-  <label class="opt">
-    <span>Open the dashboard straight away when launched from the home screen</span>
-    <input type="checkbox" id="auto">
-  </label>
-
-  <footer>Links only. Nothing here shows holdings or prices; each page asks you to sign in. Not financial advice.</footer>
-</main>
-<script>
-  document.querySelectorAll("a[data-go]").forEach(a => { a.href = LINKS[a.dataset.go]; a.rel = "noopener"; });
-  const box = document.getElementById("auto");
-  try { box.checked = localStorage.getItem("aatrox-auto") === "1"; } catch (e) {}
-  box.addEventListener("change", () => { try { localStorage.setItem("aatrox-auto", box.checked ? "1" : "0"); } catch (e) {} });
-  if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
-  // Finish the launch animation: fly the mark to the header icon, fade the cover, rise the menu in.
-  (function () {
-    const intro = document.getElementById("intro");
-    const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const finish = () => {
-      if (window.AATROX_AUTO) { location.replace(LINKS.dashboard); return; }
-      const svg = intro.querySelector("svg"), target = document.querySelector("header img");
-      const a = svg.getBoundingClientRect(), b = target.getBoundingClientRect();
-      const k = b.width / a.width;
-      svg.style.transform = `translate(${b.left + b.width / 2 - (a.left + a.width / 2)}px, ${b.top + b.height / 2 - (a.top + a.height / 2)}px) scale(${k})`;
-      document.body.classList.add("ready");
-      setTimeout(() => intro.classList.add("done"), 300);
-      setTimeout(() => intro.remove(), 800);
-    };
-    if (reduce) { document.body.classList.add("ready"); intro.remove(); if (window.AATROX_AUTO) location.replace(LINKS.dashboard); return; }
-    setTimeout(finish, 1250);
-  })();
-</script>
+<div id="scrim" class="hidden"></div>
+<section id="sheet" class="hidden" role="dialog" aria-modal="true"></section>
 </body>
 </html>

@@ -1,7 +1,7 @@
 {
   "name": "Aatrox Capital",
   "short_name": "Aatrox",
-  "description": "Launcher for the Aatrox Capital scorecard dashboard.",
+  "description": "Rules-based stock scorecard: signals, swing setups and a red-flag scan of every holding.",
   "id": "./",
   "start_url": "./?source=pwa",
   "scope": "./",
@@ -15,9 +15,9 @@
     {"src": "icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"}
   ],
   "shortcuts": [
-    {"name": "Dashboard", "url": "./?go=dashboard", "icons": [{"src": "icons/shortcut-96.png", "sizes": "96x96"}]},
-    {"name": "Trading 212 sync", "short_name": "Sync", "url": "./?go=sync", "icons": [{"src": "icons/shortcut-96.png", "sizes": "96x96"}]},
-    {"name": "Signal log", "url": "./?go=log", "icons": [{"src": "icons/shortcut-96.png", "sizes": "96x96"}]},
-    {"name": "Trading 212", "url": "./?go=t212", "icons": [{"src": "icons/shortcut-96.png", "sizes": "96x96"}]}
+    {"name": "Signals", "url": "./#signals", "icons": [{"src": "icons/shortcut-96.png", "sizes": "96x96"}]},
+    {"name": "Swing setups", "short_name": "Swing", "url": "./#swing", "icons": [{"src": "icons/shortcut-96.png", "sizes": "96x96"}]},
+    {"name": "Holdings scan", "short_name": "Holdings", "url": "./#holdings", "icons": [{"src": "icons/shortcut-96.png", "sizes": "96x96"}]},
+    {"name": "Run Trading 212 sync", "short_name": "Sync", "url": "./?go=sync", "icons": [{"src": "icons/shortcut-96.png", "sizes": "96x96"}]}
   ]
 }
