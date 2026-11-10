@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#141110">
+<title>Aatrox</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/favicon-64.png" type="image/png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<script>
+  // Shortcut links (?go=...) and "open dashboard on launch" jump straight to the target.
+  const LINKS = {
+    dashboard: "https://claude.ai/artifact/TcP9PAnqqYBuxmdXHWeQTT",
+    sync: "https://github.com/Kayzield909/aatrox-capital/actions/workflows/t212-sync.yml",
+    log: "https://github.com/Kayzield909/aatrox-capital/blob/main/SIGNAL_LOG.md",
+    repo: "https://github.com/Kayzield909/aatrox-capital",
+    t212: "https://app.trading212.com/"
+  };
+  (function () {
+    const q = new URLSearchParams(location.search);
+    const go = q.get("go");
+    let auto = false;
+    try { auto = localStorage.getItem("aatrox-auto") === "1"; } catch (e) {}
+    const launched = q.get("source") === "pwa" && !sessionStorage.getItem("aatrox-shown");
+    try { sessionStorage.setItem("aatrox-shown", "1"); } catch (e) {}
+    if (go && LINKS[go]) location.replace(LINKS[go]);
+    else if (auto && launched) location.replace(LINKS.dashboard);
+  })();
+</script>
+<style>
+  :root {
+    --bg: #141110; --panel: #1f1a18; --line: #352c28; --fg: #f3ece6; --muted: #a89a91;
+    --red: #ce4630; --gold: #e4b550;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--fg); }
+  body {
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    min-height: 100dvh; padding: max(24px, env(safe-area-inset-top)) 16px max(24px, env(safe-area-inset-bottom));
+    display: flex; flex-direction: column; align-items: center;
+  }
+  main { width: 100%; max-width: 26rem; }
+  header { display: flex; align-items: center; gap: 14px; margin: 8px 0 28px; }
+  header img { width: 52px; height: 52px; border-radius: 12px; border: 1px solid var(--line); }
+  h1 { font-size: 1.35rem; font-weight: 650; margin: 0; letter-spacing: .01em; }
+  header p { margin: 2px 0 0; color: var(--muted); font-size: .85rem; }
+  a.tile {
+    display: flex; align-items: center; gap: 14px; text-decoration: none; color: inherit;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+    padding: 16px; margin-bottom: 10px; min-height: 64px;
+    -webkit-tap-highlight-color: transparent; transition: border-color .15s, transform .1s;
+  }
+  a.tile:active { transform: scale(.985); }
+  a.tile:hover, a.tile:focus-visible { border-color: var(--gold); outline: none; }
+  a.tile.primary { border-color: var(--red); padding: 20px 16px; }
+  .ic { width: 36px; height: 36px; flex: none; display: grid; place-items: center; border-radius: 10px; background: #2a221f; }
+  .ic svg { width: 20px; height: 20px; stroke: var(--gold); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .primary .ic { background: var(--red); }
+  .primary .ic svg { stroke: #fff; }
+  .t { font-weight: 600; font-size: 1rem; }
+  .s { color: var(--muted); font-size: .8rem; margin-top: 2px; }
+  .arrow { margin-left: auto; color: var(--muted); }
+  .opt { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 22px; padding: 4px 2px; color: var(--muted); font-size: .85rem; }
+  .opt input { width: 44px; height: 24px; accent-color: var(--red); }
+  footer { margin-top: 18px; color: var(--muted); font-size: .75rem; line-height: 1.5; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <img src="icons/icon-192.png" alt="">
+    <div>
+      <h1>Aatrox Capital</h1>
+      <p>Rules-based scorecard</p>
+    </div>
+  </header>
+
+  <a class="tile primary" data-go="dashboard">
+    <span class="ic"><svg viewBox="0 0 24 24"><path d="M3 20h18M5 16l4-5 3 3 5-7 2 3"/></svg></span>
+    <span><div class="t">Dashboard</div><div class="s">Scores, swing setups, every-holding scan</div></span>
+    <span class="arrow">›</span>
+  </a>
+  <a class="tile" data-go="sync">
+    <span class="ic"><svg viewBox="0 0 24 24"><path d="M20 11a8 8 0 0 0-14.3-4.9L4 8M4 4v4h4M4 13a8 8 0 0 0 14.3 4.9L20 16M20 20v-4h-4"/></svg></span>
+    <span><div class="t">Trading 212 sync</div><div class="s">Run it now from GitHub Actions</div></span>
+    <span class="arrow">›</span>
+  </a>
+  <a class="tile" data-go="log">
+    <span class="ic"><svg viewBox="0 0 24 24"><path d="M7 4h10v16H7zM10 8h4M10 12h4M10 16h2"/></svg></span>
+    <span><div class="t">Signal log</div><div class="s">Week-by-week signal changes</div></span>
+    <span class="arrow">›</span>
+  </a>
+  <a class="tile" data-go="t212">
+    <span class="ic"><svg viewBox="0 0 24 24"><path d="M4 7h16v12H4zM8 7V5h8v2M4 12h16"/></svg></span>
+    <span><div class="t">Trading 212</div><div class="s">Open your account</div></span>
+    <span class="arrow">›</span>
+  </a>
+  <a class="tile" data-go="repo">
+    <span class="ic"><svg viewBox="0 0 24 24"><path d="M6 3v12M18 9a3 3 0 1 0 0-.01M6 21a3 3 0 1 0 0-.01M18 12c0 4-6 3-12 6"/></svg></span>
+    <span><div class="t">Repository</div><div class="s">Engine, runbook, data</div></span>
+    <span class="arrow">›</span>
+  </a>
+
+  <label class="opt">
+    <span>Open the dashboard straight away when launched from the home screen</span>
+    <input type="checkbox" id="auto">
+  </label>
+
+  <footer>Links only. Nothing here shows holdings or prices; each page asks you to sign in. Not financial advice.</footer>
+</main>
+<script>
+  document.querySelectorAll("a[data-go]").forEach(a => { a.href = LINKS[a.dataset.go]; a.rel = "noopener"; });
+  const box = document.getElementById("auto");
+  try { box.checked = localStorage.getItem("aatrox-auto") === "1"; } catch (e) {}
+  box.addEventListener("change", () => { try { localStorage.setItem("aatrox-auto", box.checked ? "1" : "0"); } catch (e) {} });
+  if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
+</script>
+</body>
+</html>
