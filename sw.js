@@ -1,8 +1,9 @@
 // App shell only. GitHub API calls (your data) are never touched or cached here.
-const VERSION = "3f0ad77";
+const VERSION = "c9d0820";
 const CACHE = "aatrox-" + VERSION;
 const SHELL = ["./", "index.html", "styles.css", "app.js", "manifest.webmanifest",
-  "icons/icon-192.png", "icons/icon-512.png", "icons/favicon-64.png", "icons/maskable-512.png"];
+  "icons/icon-192.png", "icons/icon-512.png", "icons/favicon-64.png", "icons/maskable-512.png",
+  "v2/", "v2/index.html", "v2/styles.css", "v2/app.js"];
 self.addEventListener("install", e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL))); self.skipWaiting(); });
 self.addEventListener("activate", e => {
   e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim()));

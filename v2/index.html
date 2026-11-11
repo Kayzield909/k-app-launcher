@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src https://api.github.com; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta name="referrer" content="no-referrer">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#141110">
+<title>Aatrox</title>
+<link rel="manifest" href="../manifest.webmanifest">
+<link rel="icon" href="../icons/favicon-64.png" type="image/png">
+<link rel="apple-touch-icon" href="../icons/apple-touch-icon.png">
+<link rel="stylesheet" href="styles.css">
+<script src="app.js" defer></script>
+</head>
+<body>
+<div id="intro" aria-hidden="true">
+  <svg viewBox="0 0 100 100">
+    <line class="mk-sup" x1="15" y1="63" x2="85" y2="63"/>
+    <polyline class="mk-chart" points="26,78 37,50 43,63 50,22 74,78"/>
+    <circle class="mk-dot" cx="43" cy="63" r="4.6"/>
+  </svg>
+</div>
+
+<div id="onboard" class="hidden"></div>
+
+<div id="app" class="hidden">
+  <header id="top">
+    <svg class="brand" viewBox="0 0 100 100" aria-hidden="true">
+      <line class="mk-sup" x1="15" y1="63" x2="85" y2="63"/>
+      <polyline class="mk-chart" points="26,78 37,50 43,63 50,22 74,78"/>
+      <circle class="mk-dot" cx="43" cy="63" r="4.6"/>
+    </svg>
+    <h1 id="title">Signals</h1><span class="beta">V2</span>
+    <div class="asof" id="asof"></div>
+    <button class="iconbtn" id="refresh" aria-label="Refresh">
+      <svg viewBox="0 0 24 24"><path d="M20 11a8 8 0 0 0-14.3-4.9L4 8M4 4v4h4M4 13a8 8 0 0 0 14.3 4.9L20 16M20 20v-4h-4"/></svg>
+    </button>
+  </header>
+  <div id="ptr" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 5v14M6 13l6 6 6-6"/></svg></div>
+  <div id="banner" class="hidden" role="status"></div>
+  <main id="view"></main>
+  <nav id="tabs" role="tablist">
+    <button role="tab" data-tab="signals" aria-selected="true">
+      <svg viewBox="0 0 24 24"><path d="M3 20h18M5 16l4-5 3 3 5-7 2 3"/></svg>Signals</button>
+    <button role="tab" data-tab="swing" aria-selected="false">
+      <svg viewBox="0 0 24 24"><path d="M3 15h18" stroke-dasharray="3 3"/><path d="M4 19l5-9 3 5 4-11 4 15"/></svg>Swing</button>
+    <button role="tab" data-tab="holdings" aria-selected="false">
+      <svg viewBox="0 0 24 24"><path d="M4 7h16v12H4zM8 7V5h8v2M4 12h16"/></svg>Holdings</button>
+    <button role="tab" data-tab="log" aria-selected="false">
+      <svg viewBox="0 0 24 24"><path d="M7 4h10v16H7zM10 8h4M10 12h4M10 16h2"/></svg>Log</button>
+  </nav>
+</div>
+
+<div id="scrim" class="hidden"></div>
+<section id="sheet" class="hidden" role="dialog" aria-modal="true"></section>
+</body>
+</html>

@@ -3,6 +3,7 @@
    token that lives only on this device. Nothing in this public code contains data. */
 "use strict";
 
+const APP_VERSION = "v1";   // v2 lives in ./v2/ and sets this to "v2"
 const REPO = "Kayzield909/aatrox-capital";
 const API = `https://api.github.com/repos/${REPO}`;
 const FILES = {
@@ -86,12 +87,18 @@ try {
   if (c && c.files) { state.data = c.files; state.fetchedAt = c.fetchedAt; }
 } catch (e) {}
 
-// ---------- shortcuts that leave the app ----------
+// ---------- shortcuts that leave the app, and the V1/V2 switch ----------
 (function () {
   const q = new URLSearchParams(location.search);
   const go = q.get("go");
-  if (go && LINKS[go]) location.replace(LINKS[go]);
+  if (go && LINKS[go]) { location.replace(LINKS[go]); return; }
+  const want = store.get("aatrox-version") || "v1";
+  if (want !== APP_VERSION) location.replace((APP_VERSION === "v1" ? "v2/" : "../") + location.search + location.hash);
 })();
+function switchVersion(v) {
+  store.set("aatrox-version", v);
+  if (v !== APP_VERSION) location.href = (APP_VERSION === "v1" ? "v2/" : "../") + "#log";
+}
 
 // ---------- data ----------
 async function gh(path, token) {
@@ -407,6 +414,16 @@ function viewLog(v, d) {
   v.append(h("div", { class: "card links" },
     ...[["Trading 212", LINKS.t212], ["Dashboard on claude.ai", LINKS.dashboard], ["Repository", LINKS.repo]]
       .map(([t, u]) => h("a", { href: u, target: "_blank", rel: "noopener" }, t, h("span", null, "↗")))));
+
+  v.append(h("div", { class: "h2" }, "App version"));
+  const vc = h("div", { class: "card" });
+  const seg = h("div", { class: "chips", style: { margin: "0" } });
+  for (const [k, label] of [["v1", "V1 · stable"], ["v2", "V2 · beta"]])
+    seg.append(h("button", { class: "chip", "aria-pressed": String(APP_VERSION === k), onclick: () => switchVersion(k) }, label));
+  vc.append(seg, h("div", { class: "note" }, APP_VERSION === "v1"
+    ? "V2 is where new features land first. Switch back any time; both use the same token and data."
+    : "You're on the V2 beta. The home-screen icon opens V2 until you switch back."));
+  v.append(vc);
 
   v.append(h("div", { class: "h2" }, "Connection"));
   const cc = h("div", { class: "card" });
