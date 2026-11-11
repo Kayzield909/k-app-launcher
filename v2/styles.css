@@ -274,3 +274,12 @@ textarea.code { width: 100%; margin-top: 6px; padding: 10px; border-radius: 10px
 .tchip.ev { color: #f0b9a9; border-color: #6a3a2c; }
 .links .sr { display: flex; flex-direction: column; }
 .links .sr small { color: var(--faint); font-size: .74rem; margin-top: 2px; }
+
+/* ---------- mini logos ---------- */
+.logo { width: 30px; height: 30px; flex: none; border-radius: 50%; background: #fff; object-fit: contain; padding: 4px; box-shadow: 0 0 0 1px var(--line); }
+.logo.big { width: 44px; height: 44px; padding: 6px; }
+.logo.mono { display: grid; place-items: center; padding: 0; color: #fff; font-size: .66rem; font-weight: 750; letter-spacing: .02em;
+  background: hsl(var(--hue) 32% 30%); box-shadow: 0 0 0 1px hsl(var(--hue) 30% 40%); }
+.logo.mono.big { font-size: .85rem; }
+.sh-head { align-items: center; }
+.row .l1 .logo + .tk { margin-left: 2px; }

@@ -15,7 +15,8 @@ const FILES = {
   sparks: "output/sparklines.json",
   alerts: "output/alerts.json",
   mood: "output/mood.json",
-  notes: "output/mood_notes.json"
+  notes: "output/mood_notes.json",
+  logos: "output/logos.json"
 };
 const LINKS = {
   sync: "https://github.com/Kayzield909/aatrox-capital/actions/workflows/t212-sync.yml",
@@ -131,7 +132,8 @@ async function loadAll(token) {
     sparks: out.sparks ? JSON.parse(out.sparks) : {},
     alerts: out.alerts ? JSON.parse(out.alerts) : [],
     mood: out.mood ? JSON.parse(out.mood) : null,
-    notes: out.notes ? JSON.parse(out.notes) : null
+    notes: out.notes ? JSON.parse(out.notes) : null,
+    logos: out.logos ? JSON.parse(out.logos) : {}
   };
 }
 async function refresh(manual) {
@@ -279,7 +281,7 @@ function viewSignals(v, d) {
   for (const r of list) {
     const sp = (d.sparks || {})[r.ticker];
     L.append(h("button", { class: "row", onclick: () => openStock(r.ticker) },
-      h("div", { class: "l1 tl" },
+      h("div", { class: "l1 tl" }, logo(r.ticker),
         h("div", { class: "who" }, h("div", null, h("span", { class: "tk" }, r.ticker), r.held ? h("span", { class: "held" }, "HELD") : null),
           h("div", { class: "nm" }, r.name)),
         sp ? Sparkline(sp.closes) : null,
@@ -345,7 +347,7 @@ function viewSwing(v, d) {
   const L = h("div", { class: "list" });
   for (const r of rows.slice().sort((a, b) => SETUP_ORDER.indexOf(a.setup) - SETUP_ORDER.indexOf(b.setup) || (a.dist_support_pct ?? 999) - (b.dist_support_pct ?? 999))) {
     L.append(h("button", { class: "row", onclick: () => openStock(r.ticker) },
-      h("div", { class: "l1" }, h("span", { class: "tk" }, r.ticker), h("span", { class: "nm" }, r.name),
+      h("div", { class: "l1" }, logo(r.ticker), h("span", { class: "tk" }, r.ticker), h("span", { class: "nm" }, r.name),
         h("span", { class: "pill " + (r.swing === "ENTER" ? "g-buy" : r.swing === "READY" ? "g-watch" : "g-hold") }, r.swing === "NO TRADE" ? "No trade" : r.swing)),
       h("div", { class: "l2" }, h("span", null, h("b", null, setupLabel(r.setup))),
         r.support != null ? h("span", null, "support ", h("b", null, money(r.support, r.ccy)), r.support_touches ? ` ×${r.support_touches}` : "") : null,
@@ -411,7 +413,7 @@ function viewHoldings(v, d) {
     if (!list.length) L.append(h("div", { class: "empty" }, "No holdings match."));
     for (const r of list.slice(0, 150)) {
       L.append(h("button", { class: "row", onclick: () => r.scan === "WATCHLIST" ? openStock(r.ticker) : openHolding(r) },
-        h("div", { class: "l1" }, h("span", { class: "tk" }, r.ticker), h("span", { class: "nm" }, r.name || ""),
+        h("div", { class: "l1" }, logo(r.ticker), h("span", { class: "tk" }, r.ticker), h("span", { class: "nm" }, r.name || ""),
           h("span", { class: "pill g-" + SCAN_GROUP[r.scan] }, SCAN_LABEL[r.scan])),
         h("div", { class: "l2" }, r.sector ? h("span", null, r.sector) : null, r.first_buy ? h("span", null, "since " + dShort(r.first_buy) + " " + r.first_buy.slice(0, 4)) : null,
           r.vs_cost_pct != null ? h("span", { class: r.vs_cost_pct >= 0 ? "up" : "down" }, pct(r.vs_cost_pct) + " vs cost") : null,
@@ -421,6 +423,14 @@ function viewHoldings(v, d) {
   };
   search.addEventListener("input", () => { state.holdQuery = search.value; draw(); });
   draw();
+}
+
+// ---------- Logos (company site icons from the private repo; monogram when there's none) ----------
+function logo(t, big) {
+  const src = state.data && state.data.logos ? state.data.logos[t] : null;
+  if (src && /^data:image\/(png|x-icon);base64,/.test(src)) return h("img", { class: "logo" + (big ? " big" : ""), src, alt: "", loading: "lazy" });
+  let hash = 0; for (const ch of t) hash = (hash * 31 + ch.charCodeAt(0)) % 360;
+  return h("span", { class: "logo mono" + (big ? " big" : ""), style: { "--hue": String(hash) } }, t.replace(/[^A-Z]/g, "").slice(0, 2));
 }
 
 // ---------- Mood ----------
@@ -600,7 +610,7 @@ function viewAlerts(v, d) {
     const inScores = d.scores.some(r => r.ticker === a.ticker);
     L.append(h("button", { class: "row alert" + (i < unread ? " unread" : ""), onclick: () => {
       if (inScores) openStock(a.ticker); else { const hh = d.holdings.find(x => x.ticker === a.ticker); if (hh) openHolding(hh); } } },
-      h("div", { class: "l1" }, h("i", { class: "kdot bg-" + (a.kind === "buy" ? "buy" : a.kind === "warn" ? "sell" : "hold") }), h("span", { class: "atitle" }, a.title)),
+      h("div", { class: "l1" }, a.ticker === "MARKET" ? null : logo(a.ticker), h("i", { class: "kdot bg-" + (a.kind === "buy" ? "buy" : a.kind === "warn" ? "sell" : "hold") }), h("span", { class: "atitle" }, a.title)),
       h("div", { class: "note" }, a.body)));
   });
   v.append(L);
@@ -707,7 +717,7 @@ function openStock(ticker) {
   if (!r) return;
   const w = d.setups.find(x => x.ticker === ticker);
   openSheet(sh => {
-    sh.append(h("div", { class: "sh-head" },
+    sh.append(h("div", { class: "sh-head" }, logo(r.ticker, true),
       h("div", null, h("h2", null, r.ticker), h("div", { class: "nm" }, `${r.name} · ${r.theme}`)), pill(r.signal)));
     const chartHost = h("div", { class: "pc" }, h("div", { class: "skel", style: { height: "300px" } }));
     sh.append(chartHost);
@@ -770,7 +780,7 @@ function openStock(ticker) {
 }
 function openHolding(r) {
   openSheet(sh => {
-    sh.append(h("div", { class: "sh-head" },
+    sh.append(h("div", { class: "sh-head" }, logo(r.ticker, true),
       h("div", null, h("h2", null, r.ticker), h("div", { class: "nm" }, [r.name, r.sector].filter(Boolean).join(" · "))),
       h("span", { class: "pill g-" + SCAN_GROUP[r.scan] }, SCAN_LABEL[r.scan])));
     const flags = (r.flags || "").split("; ").filter(Boolean);
