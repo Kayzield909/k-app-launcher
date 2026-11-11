@@ -244,3 +244,33 @@ textarea.code { width: 100%; margin-top: 6px; padding: 10px; border-radius: 10px
 .row.alert .note { margin-top: 4px; }
 .row.alert.unread { border-color: #4a3e38; background: var(--panel2); }
 .kdot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+
+/* ---------- V2.2b mood ---------- */
+.mood-mk { margin-top: 10px; }
+.mk-top { display: flex; justify-content: space-between; align-items: baseline; }
+.mk-top b { font-size: 1.05rem; }
+.mk-bar { position: relative; height: 8px; border-radius: 4px; margin: 10px 0 4px; background: linear-gradient(90deg, #e5604a, #e98b5a 30%, #8c7f77 50%, #9fcf7a 70%, #5fbf7a); }
+.mk-bar i { position: absolute; top: -4px; width: 4px; height: 16px; margin-left: -2px; border-radius: 2px; background: var(--fg); box-shadow: 0 0 0 2px var(--bg); }
+.mk-scale { display: flex; justify-content: space-between; font-size: .66rem; color: var(--faint); }
+.mchips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 7px; }
+.mchip { font-size: .68rem; font-weight: 650; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }
+.mchip.ev { color: #f0b9a9; border-color: #6a3a2c; background: #2a1a15; }
+.mchip.at { color: #8fb3ff; border-color: #34405a; }
+.mchip.dn { color: var(--sell); border-color: #5a2f28; }
+.mchip.upc { color: var(--buy); border-color: #2f4a36; }
+.lens { font-size: .86rem; color: #f0c9b8; background: #2a1a15; border: 1px solid #4a2e22; border-radius: 10px; padding: 10px 12px; margin-bottom: 10px; }
+.lens b { color: #f6d3c4; }
+.mnote { font-size: .9rem; line-height: 1.45; margin-bottom: 6px; }
+.mnote .faint { font-size: .72rem; margin-bottom: 3px; }
+.msrc { display: flex; flex-direction: column; gap: 3px; margin-bottom: 10px; }
+.msrc a { font-size: .76rem; color: var(--muted); }
+.mk-kpis { margin-top: 4px; }
+.hl { display: flex; flex-direction: column; margin-top: 10px; border-top: 1px solid var(--line2); }
+.hli { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-bottom: 1px solid var(--line2); text-decoration: none; }
+.tdot { width: 8px; height: 8px; border-radius: 50%; flex: none; margin-top: 6px; }
+.hlt { display: block; font-size: .86rem; line-height: 1.35; }
+.hlm { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 4px; font-size: .72rem; color: var(--faint); }
+.tchip { padding: 0 6px; border-radius: 6px; border: 1px solid var(--line); color: var(--muted); }
+.tchip.ev { color: #f0b9a9; border-color: #6a3a2c; }
+.links .sr { display: flex; flex-direction: column; }
+.links .sr small { color: var(--faint); font-size: .74rem; margin-top: 2px; }

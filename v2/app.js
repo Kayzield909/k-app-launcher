@@ -13,7 +13,9 @@ const FILES = {
   log: "SIGNAL_LOG.md",
   sync: "data/t212_sync.md",
   sparks: "output/sparklines.json",
-  alerts: "output/alerts.json"
+  alerts: "output/alerts.json",
+  mood: "output/mood.json",
+  notes: "output/mood_notes.json"
 };
 const LINKS = {
   sync: "https://github.com/Kayzield909/aatrox-capital/actions/workflows/t212-sync.yml",
@@ -127,7 +129,9 @@ async function loadAll(token) {
     holdings: out.holdings ? JSON.parse(out.holdings) : [],
     log: out.log || "", sync: out.sync || "",
     sparks: out.sparks ? JSON.parse(out.sparks) : {},
-    alerts: out.alerts ? JSON.parse(out.alerts) : []
+    alerts: out.alerts ? JSON.parse(out.alerts) : [],
+    mood: out.mood ? JSON.parse(out.mood) : null,
+    notes: out.notes ? JSON.parse(out.notes) : null
   };
 }
 async function refresh(manual) {
@@ -252,6 +256,8 @@ function viewSignals(v, d) {
   const chips = h("div", { class: "chips" });
   for (const [k, label] of [["all", "All"], ["held", "Holdings"], ["Compulsory products", "Compulsory"], ["AI supply chain", "AI supply chain"]])
     chips.append(h("button", { class: "chip", "aria-pressed": String(state.theme === k), onclick: () => { state.theme = k; render(false); } }, label));
+  const mm = marketMoodCard(d.mood && d.mood.market);
+  if (mm) v.append(mm);
   v.append(counts, chips);
 
   const list = themed.filter(r => !state.sigGroup || GROUP[r.signal] === state.sigGroup)
@@ -285,7 +291,8 @@ function viewSignals(v, d) {
         r.peg != null ? h("span", null, "PEG ", h("b", null, num(r.peg, 2))) : null,
         r.vs_cost_pct != null ? h("span", { class: r.vs_cost_pct >= 0 ? "up" : "down" }, pct(r.vs_cost_pct) + " vs cost") : null,
         h("span", { class: "score" }, r.score, h("i", { style: { "--w": r.score + "%" } }))),
-      r.warnings ? h("div", { class: "flags" }, r.warnings) : null));
+      r.warnings ? h("div", { class: "flags" }, r.warnings) : null,
+      (() => { const mc = moodChips(r.ticker); return mc.length ? h("div", { class: "mchips" }, ...mc) : null; })()));
   }
   v.append(L);
 }
@@ -414,6 +421,82 @@ function viewHoldings(v, d) {
   };
   search.addEventListener("input", () => { state.holdQuery = search.value; draw(); });
   draw();
+}
+
+// ---------- Mood ----------
+const CAT = { management: "Management", legal: "Legal / regulatory", earnings: "Earnings", analyst: "Analyst",
+  competition: "Competition", deals: "Deals", capital: "Capital" };
+const LENS = { management: "Management", legal: "Management", competition: "Moat", deals: "Meaning", earnings: "Numbers", analyst: "Numbers", capital: "Numbers" };
+const SUBS = [
+  ["wallstreetbets", "Retail euphoria and panic", "Contrarian at extremes only"],
+  ["stocks", "Mainstream retail reaction to news", "Medium: is the crowd scared?"],
+  ["StockMarket", "News-driven reactions", "Medium"],
+  ["investing", "Buy-and-hold crowd mood", "Slow; useful when it turns"],
+  ["ValueInvesting", "Value cases and bear cases", "Closest to Rule 1"],
+  ["SecurityAnalysis", "Deep fundamental write-ups", "Quality over quantity"],
+  ["options", "Positioning and squeeze talk", "Early warning of options-driven moves"],
+  ["semiconductors", "AI supply chain news", "Industry context"],
+  ["UKInvesting", "UK stocks: Aviva, Domino's, Admiral", "UK context"],
+  ["dividends", "Income crowd", "Dividend context"],
+  ["NVDA_Stock", "Nvidia holders", "Echo chamber: read contrarian"],
+  ["AMD_Stock", "AMD holders", "Echo chamber: read contrarian"]
+];
+function moodOf(t) { return state.data && state.data.mood && state.data.mood.stocks ? state.data.mood.stocks[t] : null; }
+function moodChips(t) {
+  const m = moodOf(t); if (!m) return [];
+  const out = [];
+  if ((m.event_3d || []).length) out.push(h("span", { class: "mchip ev" }, "⚑ " + m.event_3d.map(x => CAT[x]).join(" · ")));
+  const a = m.attention || {};
+  if ((a.spike_x || 0) >= 2 && (a.mentions || 0) >= 20) out.push(h("span", { class: "mchip at" }, `Reddit ×${a.spike_x}`));
+  if (m.tone_7d != null && m.tone_28d != null && Math.abs(m.tone_7d - m.tone_28d) >= 0.3)
+    out.push(h("span", { class: "mchip " + (m.tone_7d < m.tone_28d ? "dn" : "upc") }, `Tone ${m.tone_7d < m.tone_28d ? "↓" : "↑"}`));
+  return out;
+}
+function marketMoodCard(mk) {
+  if (!mk) return null;
+  const f = mk.facts || {};
+  const col = mk.score < 25 ? "var(--sell)" : mk.score < 45 ? "#e98b5a" : mk.score <= 55 ? "var(--hold)" : mk.score <= 75 ? "#9fcf7a" : "var(--buy)";
+  return h("div", { class: "card mood-mk" },
+    h("div", { class: "mk-top" }, h("span", { class: "sub" }, "Market mood"), h("b", { style: { color: col } }, `${mk.score} · ${mk.label}`)),
+    h("div", { class: "mk-bar" }, h("i", { style: { left: Math.max(1, Math.min(99, mk.score)) + "%" } })),
+    h("div", { class: "mk-scale" }, h("span", null, "Extreme fear"), h("span", null, "Neutral"), h("span", null, "Extreme greed")),
+    h("div", { class: "note" }, `VIX ${f.vix} (higher than ${f.vix_1y_percentile}% of the past year) · S&P ${f.spx_vs_200d_pct > 0 ? "+" : ""}${f.spx_vs_200d_pct}% vs 200-day · ${f.spx_1m_pct > 0 ? "+" : ""}${f.spx_1m_pct}% in a month · ${f.sectors_above_200d} sectors above 200-day`));
+}
+function moodSection(r) {
+  const m = moodOf(r.ticker);
+  if (!m) return [];
+  const notes = state.data.notes && state.data.notes.notes ? state.data.notes.notes[r.ticker] : null;
+  const card = h("div", { class: "card" });
+  const ev = m.event_3d || [];
+  if (ev.length) card.append(h("div", { class: "lens" }, h("b", null, "Rule 1 lens: Management. "),
+    `${Math.round((m.event_share || 0) * 100)}% of this week's ${m.news_7d} headlines are about ${ev.map(x => CAT[x].toLowerCase()).join(" and ")}. That's one of the four Ms, so check it before acting on the price.`));
+  if (notes && notes.text) {
+    card.append(h("div", { class: "mnote" }, h("div", { class: "faint" }, "Friday note · " + dShort(state.data.notes.as_of)), notes.text));
+    if ((notes.sources || []).length) card.append(h("div", { class: "msrc" }, ...notes.sources.slice(0, 3).map(s => h("a", { href: s.url, target: "_blank", rel: "noopener" }, s.title))));
+  }
+  const a = m.attention || {}, c = m.crowd || {};
+  const toneTxt = m.tone_7d == null ? "n/a" : (m.tone_7d > 0 ? "+" : "") + m.tone_7d.toFixed(2);
+  const shift = m.tone_7d != null && m.tone_28d != null ? m.tone_7d - m.tone_28d : null;
+  card.append(h("div", { class: "kpis mk-kpis" },
+    kpi("Headline tone (week)", toneTxt, shift == null ? "no 3-week baseline" : `${shift >= 0 ? "▲" : "▼"} ${Math.abs(shift).toFixed(2)} vs prior 3 weeks`),
+    kpi("News volume", `${m.news_7d} this week`, m.news_spike_x ? `×${m.news_spike_x} the usual` : "busy week, no baseline"),
+    kpi("Reddit", a.rank ? `#${a.rank}` : "not ranked", a.rank ? `${a.mentions} mentions · ×${a.spike_x} vs ${a.baseline}` : "few or no mentions"),
+    kpi("Stocktwits crowd", c.bull_pct == null ? "n/a" : `${c.bull_pct}% bullish`, c.posts ? `${c.bull + c.bear} tagged of ${c.posts} posts` : "US listings only")));
+  const hl = m.headlines || [];
+  if (hl.length) {
+    const ul = h("div", { class: "hl" });
+    for (const x of hl) ul.append(h("a", { class: "hli", href: x.url, target: "_blank", rel: "noopener" },
+      h("i", { class: "tdot " + (x.tone > 0.2 ? "bg-buy" : x.tone < -0.2 ? "bg-sell" : "bg-hold") }),
+      h("span", null, h("span", { class: "hlt" }, x.title),
+        h("span", { class: "hlm" }, `${x.source} · ${dShort(x.date)}`, ...(x.types || []).map(ty => h("span", { class: "tchip" + (ty === "management" || ty === "legal" ? " ev" : "") }, CAT[ty] + (LENS[ty] ? "" : ""))))))); 
+    card.append(ul);
+  } else card.append(h("div", { class: "note" }, "No headlines this week."));
+  card.append(h("div", { class: "note" }, "Context, not a signal: following Reddit picks hasn't beaten the market since GameStop. Mood matters most at extremes, when it lines up with a level your rules already flag."));
+  return section("Catalysts & mood", card);
+}
+function subredditCard() {
+  return h("div", { class: "card links" }, ...SUBS.map(([s, what, q]) => h("a", { href: `https://www.reddit.com/r/${s}/`, target: "_blank", rel: "noopener" },
+    h("span", { class: "sr" }, h("b", null, "r/" + s), h("small", null, `${what} · ${q}`)), h("span", null, "↗"))));
 }
 
 // ---------- Alerts ----------
@@ -552,6 +635,7 @@ function viewLog(v, d) {
   }
   v.append(lc);
 
+  v.append(h("div", { class: "h2" }, "Where to read the crowd"), subredditCard());
   v.append(h("div", { class: "h2" }, "Shortcuts"));
   v.append(h("div", { class: "card links" },
     ...[["Trading 212", LINKS.t212], ["Dashboard on claude.ai", LINKS.dashboard], ["Repository", LINKS.repo]]
@@ -642,6 +726,7 @@ function openStock(ticker) {
       kpi("PEG", r.peg == null ? "n/a" : `${num(r.peg, 2)} · ${r.pe_signal}`)));
     if (r.warnings || r.alerts) sh.append(h("div", { class: "card", style: { "margin-top": "10px" } },
       r.warnings ? h("div", { class: "warn" }, "⚠ " + r.warnings) : null, r.alerts ? h("div", { class: "note" }, r.alerts) : null));
+    sh.append(...moodSection(r));
     if (r.avg_cost != null) sh.append(...section("Your position", kv([
       ["Average cost", money(r.avg_cost, r.ccy)], ["vs cost", pct(r.vs_cost_pct)], ["Entry", r.entry_grade],
       ["Cost ÷ today's sticker", r.cost_to_sticker == null ? null : num(r.cost_to_sticker, 2) + "×"], ["First bought", dLong(r.first_buy)]])));
