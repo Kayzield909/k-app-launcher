@@ -16,7 +16,8 @@ const FILES = {
   alerts: "output/alerts.json",
   mood: "output/mood.json",
   notes: "output/mood_notes.json",
-  logos: "output/logos.json"
+  logos: "output/logos.json",
+  cleanup: "output/pie_cleanup.json"
 };
 const LINKS = {
   sync: "https://github.com/Kayzield909/aatrox-capital/actions/workflows/t212-sync.yml",
@@ -87,7 +88,7 @@ const SCAN_LABEL = { "SELL WARNING": "Sell warning", "ONE FLAG": "One flag", "CL
 const state = {
   token: store.get("aatrox-token"),
   data: null, fetchedAt: null, loading: false,
-  tab: "signals", sigGroup: null, theme: "all", holdFilter: "flagged", holdQuery: ""
+  tab: "signals", sigGroup: null, theme: "all", holdFilter: "flagged", holdQuery: "", pie: null
 };
 try {
   const c = JSON.parse(store.get("aatrox-data") || "null");
@@ -133,7 +134,8 @@ async function loadAll(token) {
     alerts: out.alerts ? JSON.parse(out.alerts) : [],
     mood: out.mood ? JSON.parse(out.mood) : null,
     notes: out.notes ? JSON.parse(out.notes) : null,
-    logos: out.logos ? JSON.parse(out.logos) : {}
+    logos: out.logos ? JSON.parse(out.logos) : {},
+    cleanup: out.cleanup ? JSON.parse(out.cleanup) : { pies: [] }
   };
 }
 async function refresh(manual) {
@@ -399,6 +401,16 @@ function viewHoldings(v, d) {
   for (const [k, label] of [["flagged", "Flagged"], ["all", "All " + rows.length]])
     chips.append(h("button", { class: "chip", "aria-pressed": String(state.holdFilter === k), onclick: () => { state.holdFilter = k; render(false); } }, label));
   v.append(chips);
+  const pies = (d.cleanup && d.cleanup.pies) || [];
+  if (pies.length) {
+    const pc = h("div", { class: "chips" });
+    const short = n => n.replace(/\s*-\s*custom$/i, "").replace(/^\(Almost\) /, "");
+    for (const [k, label] of [[null, "All holdings"], ...pies.map(p => [p.name, "🥧 " + short(p.name)]), ["__none", "Not in a pie"]])
+      pc.append(h("button", { class: "chip", "aria-pressed": String(state.pie === k), onclick: () => { state.pie = k; if (k) state.holdFilter = "all"; render(false); } }, label));
+    v.append(pc);
+    const pie = pies.find(p => p.name === state.pie);
+    if (pie) v.append(...pieCleanup(pie));
+  }
   const search = h("input", { class: "search", type: "search", placeholder: "Search ticker, company, flag", value: state.holdQuery, "aria-label": "Search holdings" });
   v.append(search);
   const L = h("div", { class: "list", style: { "margin-top": "12px" } });
@@ -408,6 +420,7 @@ function viewHoldings(v, d) {
     L.textContent = "";
     const q = state.holdQuery.toLowerCase();
     const list = rows.filter(r => state.holdFilter === "all" ? true : state.holdFilter === "flagged" ? (r.scan === "SELL WARNING" || r.scan === "ONE FLAG") : r.scan === state.holdFilter)
+      .filter(r => !state.pie || (state.pie === "__none" ? !(r.pies || []).length : (r.pies || []).includes(state.pie)))
       .filter(r => !q || [r.ticker, r.name, r.flags, r.sector].join(" ").toLowerCase().includes(q))
       .sort((a, b) => order[a.scan] - order[b.scan] || (b.n_flags || 0) - (a.n_flags || 0) || a.ticker.localeCompare(b.ticker));
     if (!list.length) L.append(h("div", { class: "empty" }, "No holdings match."));
@@ -431,6 +444,52 @@ function logo(t, big) {
   if (src && /^data:image\/(png|x-icon);base64,/.test(src)) return h("img", { class: "logo" + (big ? " big" : ""), src, alt: "", loading: "lazy" });
   let hash = 0; for (const ch of t) hash = (hash * 31 + ch.charCodeAt(0)) % 360;
   return h("span", { class: "logo mono" + (big ? " big" : ""), style: { "--hue": String(hash) } }, t.replace(/[^A-Z]/g, "").slice(0, 2));
+}
+
+// ---------- Pie cleanup ----------
+const ACT = { sell: ["Sell", "sell"], yield_trap: ["Review: yield trap?", "trim"], review: ["Review: broken story?", "trim"],
+  trim: ["Trim to target", "watch"], small: ["Top up or remove", "hold"] };
+function cleanupDone() { try { return JSON.parse(store.get("aatrox-cleanup") || "{}"); } catch (e) { return {}; } }
+function pieCleanup(pie) {
+  const done = cleanupDone();
+  const todo = pie.rows.filter(r => r.action !== "keep");
+  const key = r => `${pie.name}|${r.ticker}|${r.action}`;
+  const n = todo.filter(r => done[key(r)]).length;
+  const verdict = { close: ["Close this pie", "sell"], prune: ["Prune", "trim"], keep: ["Keep", "buy"] }[pie.verdict] || ["", "hold"];
+  const sum = h("div", { class: "card pie-sum" },
+    h("div", { class: "pie-top" }, h("b", null, pie.name), h("span", { class: "pill g-" + verdict[1] }, verdict[0])),
+    h("div", { class: "kpis" },
+      kpi("Pie return", pie.return_pct == null ? "n/a" : pct(pie.return_pct), pie.source || ""),
+      kpi("Median slice", pie.median_return_pct == null ? "n/a" : pct(pie.median_return_pct), `${pie.up} up · ${pie.down} down of ${pie.slices}`),
+      kpi("Sell warnings", String(pie.sell_warnings), "slices with 2+ red flags"),
+      kpi("Top 2 slices", pie.top2_share_pct + "%", "of the pie's value")),
+    h("div", { class: "prog" }, h("i", { style: { width: (todo.length ? n / todo.length * 100 : 100) + "%" } })),
+    h("div", { class: "note" }, todo.length ? `${n} of ${todo.length} cleanup steps done. Tick them off as you go; this phone remembers.` : "Nothing to clean up."));
+  const groups = [];
+  for (const a of ["sell", "yield_trap", "review", "trim", "small"]) {
+    const items = todo.filter(r => r.action === a);
+    if (!items.length) continue;
+    const box = h("div", { class: "card ck" }, h("div", { class: "ckh" }, h("span", { class: "pill g-" + ACT[a][1] }, ACT[a][0]), h("span", { class: "faint" }, `${items.length}`)));
+    for (const r of items) {
+      const k = key(r);
+      const cb = h("input", { type: "checkbox", "aria-label": `Done: ${r.label} ${r.ticker}` }); cb.checked = !!done[k];
+      const row = h("div", { class: "ckrow" + (done[k] ? " done" : "") }, cb, logo(r.ticker),
+        h("button", { class: "ckt", type: "button", onclick: () => {
+          const w = state.data.scores.find(x => x.ticker === r.ticker);
+          if (w) openStock(r.ticker); else { const hh = state.data.holdings.find(x => x.ticker === r.ticker); if (hh) openHolding(hh); } } },
+          h("span", null, h("b", null, r.ticker), " ", h("span", { class: r.return_pct >= 0 ? "up" : "down" }, r.return_pct == null ? "" : pct(r.return_pct, 0)), h("span", { class: "faint" }, ` · ${Number(r.share_pct).toFixed(1)}% of pie`)),
+          h("small", null, r.why)));
+      cb.addEventListener("change", () => {
+        const dd = cleanupDone(); if (cb.checked) dd[k] = new Date().toISOString().slice(0, 10); else delete dd[k];
+        store.set("aatrox-cleanup", JSON.stringify(dd)); row.classList.toggle("done", cb.checked); render(false);
+      });
+      box.append(row);
+    }
+    groups.push(box);
+  }
+  return [h("div", { class: "h2" }, "Pie cleanup"), sum, ...groups,
+    h("div", { class: "note" }, "Rules: sell warnings go; 3%+ yield on a falling price is a trap; down 50%+ and off the watchlist needs a reason to stay; trim anything over 2× its target weight or on Trim review; slices under 1% are noise. Your rules, not financial advice."),
+    h("div", { class: "h2" }, "Slices")];
 }
 
 // ---------- Mood ----------
