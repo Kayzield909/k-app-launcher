@@ -17,7 +17,8 @@ const FILES = {
   mood: "output/mood.json",
   notes: "output/mood_notes.json",
   logos: "output/logos.json",
-  cleanup: "output/pie_cleanup.json"
+  cleanup: "output/pie_cleanup.json",
+  reviews: "output/review_scores.json"
 };
 const LINKS = {
   sync: "https://github.com/Kayzield909/aatrox-capital/actions/workflows/t212-sync.yml",
@@ -135,7 +136,8 @@ async function loadAll(token) {
     mood: out.mood ? JSON.parse(out.mood) : null,
     notes: out.notes ? JSON.parse(out.notes) : null,
     logos: out.logos ? JSON.parse(out.logos) : {},
-    cleanup: out.cleanup ? JSON.parse(out.cleanup) : { pies: [] }
+    cleanup: out.cleanup ? JSON.parse(out.cleanup) : { pies: [] },
+    reviews: out.reviews ? JSON.parse(out.reviews) : { scores: {} }
   };
 }
 async function refresh(manual) {
@@ -447,8 +449,9 @@ function logo(t, big) {
 }
 
 // ---------- Pie cleanup ----------
-const ACT = { sell: ["Sell", "sell"], yield_trap: ["Review: yield trap?", "trim"], review: ["Review: broken story?", "trim"],
-  trim: ["Trim to target", "watch"], small: ["Top up or remove", "hold"] };
+const ACT = { sell: ["Sell: red flags", "sell"], sell_score: ["Sell: scorecard wouldn't buy", "sell"], yield_trap: ["Review: yield trap?", "trim"],
+  write_off: ["Write off: delisted", "hold"], review: ["Review: couldn't score", "trim"], trim: ["Trim to target", "watch"],
+  review_keep: ["Keep: scorecard would buy", "buy"], small: ["Top up or remove", "hold"] };
 function cleanupDone() { try { return JSON.parse(store.get("aatrox-cleanup") || "{}"); } catch (e) { return {}; } }
 function pieCleanup(pie) {
   const done = cleanupDone();
@@ -466,7 +469,7 @@ function pieCleanup(pie) {
     h("div", { class: "prog" }, h("i", { style: { width: (todo.length ? n / todo.length * 100 : 100) + "%" } })),
     h("div", { class: "note" }, todo.length ? `${n} of ${todo.length} cleanup steps done. Tick them off as you go; this phone remembers.` : "Nothing to clean up."));
   const groups = [];
-  for (const a of ["sell", "yield_trap", "review", "trim", "small"]) {
+  for (const a of ["sell", "sell_score", "yield_trap", "write_off", "review", "trim", "review_keep", "small"]) {
     const items = todo.filter(r => r.action === a);
     if (!items.length) continue;
     const box = h("div", { class: "card ck" }, h("div", { class: "ckh" }, h("span", { class: "pill g-" + ACT[a][1] }, ACT[a][0]), h("span", { class: "faint" }, `${items.length}`)));
@@ -488,7 +491,7 @@ function pieCleanup(pie) {
     groups.push(box);
   }
   return [h("div", { class: "h2" }, "Pie cleanup"), sum, ...groups,
-    h("div", { class: "note" }, "Rules: sell warnings go; 3%+ yield on a falling price is a trap; down 50%+ and off the watchlist needs a reason to stay; trim anything over 2× its target weight or on Trim review; slices under 1% are noise. Your rules, not financial advice."),
+    h("div", { class: "note" }, "Rules: sell warnings go; 3%+ yield on a falling price is a trap; anything down 50%+ and off the watchlist is run through the scorecard: sell if it wouldn't buy today, watch it if it would; trim anything over 2× its target weight or on Trim review; slices under 1% are noise. Your rules, not financial advice."),
     h("div", { class: "h2" }, "Slices")];
 }
 
@@ -842,12 +845,30 @@ function openHolding(r) {
     sh.append(h("div", { class: "sh-head" }, logo(r.ticker, true),
       h("div", null, h("h2", null, r.ticker), h("div", { class: "nm" }, [r.name, r.sector].filter(Boolean).join(" · "))),
       h("span", { class: "pill g-" + SCAN_GROUP[r.scan] }, SCAN_LABEL[r.scan])));
+    // why it's in the pie cleanup, if it is
+    for (const p of (state.data.cleanup && state.data.cleanup.pies) || []) {
+      const c = p.rows.find(x => x.ticker === r.ticker && x.action !== "keep");
+      if (c) sh.append(...section("Pie cleanup · " + p.name.replace(/\s*-\s*custom$/i, ""), h("div", { class: "card" },
+        h("span", { class: "pill g-" + (ACT[c.action] || ["", "hold"])[1] }, (ACT[c.action] || [c.label])[0]),
+        h("div", { class: "mnote", style: { "margin-top": "8px" } }, c.why),
+        h("div", { class: "faint" }, `${pct(c.return_pct, 0)} since bought · ${Number(c.share_pct).toFixed(1)}% of the pie`))));
+    }
+    const q = state.data.reviews && state.data.reviews.scores ? state.data.reviews.scores[r.ticker] : null;
+    if (q && !q.error) sh.append(...section("Would the scorecard buy it today?", h("div", { class: "card" },
+      h("div", { class: "sh-q" }, pill(q.signal), h("b", null, q.verdict === "buy" ? "Yes" : "No")),
+      h("div", { class: "kpis" },
+        kpi("Quality", `${q.quality}/40`, "25+ needed to buy"),
+        kpi("Price ÷ sticker", q.price_to_sticker == null ? "n/a" : q.price_to_sticker + "×", "1.0 or less to buy"),
+        kpi("Sticker", q.sticker == null ? "n/a" : money(q.sticker, "USD"), "buy below " + (q.mos == null ? "n/a" : money(q.mos, "USD"))),
+        kpi("PEG", q.peg == null ? "n/a" : `${num(q.peg, 2)} · ${q.pe_signal}`)),
+      h("div", { class: "note" }, q.why + ". " + (q.sticker_basis ? "Sticker: " + q.sticker_basis + "." : "")),
+      h("div", { class: "note" }, "Scored with the same Rule 1 maths as the watchlist, from this week's stockanalysis data. One-off profits can flatten the picture; without a 5-year P/E history the sticker uses a P/E cap of 20."))));
     const flags = (r.flags || "").split("; ").filter(Boolean);
     sh.append(...section("Red flags", h("div", { class: "card" },
-      flags.length ? h("ul", { style: { margin: "0", "padding-left": "18px" } }, flags.map(f => h("li", { class: "warn" }, f))) : h("div", { class: "sub" }, "None of the checks fired."),
+      flags.length ? h("ul", { style: { margin: "0", "padding-left": "18px" } }, flags.map(f => h("li", { class: "warn" }, f))) : h("div", { class: "sub" }, "Clear: the business checks pass. This is about price and growth, not a failing business."),
       h("div", { class: "note" }, r.checks === "full" ? "Full checks: ROIC, free cash flow, debt, Piotroski, Altman Z, gross margin. Two or more flags = sell warning." : "Checks " + r.checks + "."))));
     sh.append(...section("Your position", kv([["First bought", dLong(r.first_buy)], ["vs cost", r.vs_cost_pct == null ? "after next sync" : pct(r.vs_cost_pct)]])));
-    sh.append(h("p", { class: "note" }, "Not on the watchlist, so there's no sticker price or swing setup. Add it to the watchlist for the full score."));
+    if (!q) sh.append(h("p", { class: "note" }, "Not on the watchlist, so there's no sticker price or swing setup. Add it to the watchlist for the full score."));
     sh.append(h("a", { class: "btn", href: `https://stockanalysis.com/stocks/${r.ticker.toLowerCase()}/statistics/`, target: "_blank", rel: "noopener" }, "Open statistics ↗"));
   });
 }

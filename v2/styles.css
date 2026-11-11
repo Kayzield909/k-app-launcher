@@ -297,3 +297,6 @@ textarea.code { width: 100%; margin-top: 6px; padding: 10px; border-radius: 10px
 .ckt { flex: 1; min-width: 0; text-align: left; display: flex; flex-direction: column; gap: 2px; }
 .ckt small { color: var(--muted); font-size: .74rem; line-height: 1.3; }
 .ckrow.done .ckt { opacity: .45; text-decoration: line-through; }
+
+.sh-q { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.sh-q b { font-size: 1.3rem; }
