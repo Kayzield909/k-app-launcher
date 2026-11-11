@@ -60,7 +60,7 @@ main#view { padding: 6px 16px calc(var(--tabh) + env(safe-area-inset-bottom) + 2
 @keyframes viewIn { from { opacity: 0; transform: translateY(8px); } }
 
 nav#tabs {
-  position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; display: grid; grid-template-columns: repeat(4, 1fr);
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; display: grid; grid-template-columns: repeat(5, 1fr);
   height: calc(var(--tabh) + env(safe-area-inset-bottom)); padding-bottom: env(safe-area-inset-bottom);
   background: rgba(25,21,20,.92); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border-top: 1px solid var(--line2);
 }
@@ -224,3 +224,23 @@ nav#tabs button[aria-selected=true] svg { stroke: var(--gold); transform: transl
 .row .px b { font-weight: 650; }
 .row .px span { font-size: .78rem; font-weight: 600; }
 .spark { flex: none; }
+
+/* ---------- V2.2 alerts ---------- */
+.tabicon { position: relative; display: inline-flex; }
+.tbadge { position: absolute; top: -4px; right: -10px; min-width: 17px; height: 17px; padding: 0 4px; border-radius: 9px; background: var(--red); color: #fff; font-size: .62rem; font-weight: 700; display: grid; place-items: center; border: 2px solid var(--bg2); }
+.nstate { display: flex; align-items: center; gap: 8px; font-weight: 650; }
+.nstate i { width: 10px; height: 10px; border-radius: 50%; }
+.steps { margin: 12px 0 8px; padding-left: 20px; font-size: .86rem; color: #dcd2ca; }
+.steps li { margin: 6px 0; }
+textarea.code { width: 100%; margin-top: 6px; padding: 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); color: var(--muted); font: 11px/1.4 ui-monospace, monospace; resize: none; }
+.sounds { display: grid; gap: 8px; }
+.play { display: flex; align-items: center; gap: 12px; text-align: left; padding: 12px; border-radius: 12px; background: var(--bg2); border: 1px solid var(--line2); font-size: 1rem; color: var(--gold); }
+.play.warnc { color: var(--sell); }
+.play span { display: flex; flex-direction: column; color: var(--fg); }
+.play small { color: var(--muted); font-size: .76rem; }
+.aday { font-size: .74rem; color: var(--muted); margin: 10px 2px 2px; font-weight: 650; letter-spacing: .04em; text-transform: uppercase; }
+.row.alert .l1 { gap: 10px; }
+.row.alert .atitle { font-weight: 650; font-size: .92rem; }
+.row.alert .note { margin-top: 4px; }
+.row.alert.unread { border-color: #4a3e38; background: var(--panel2); }
+.kdot { width: 9px; height: 9px; border-radius: 50%; flex: none; }

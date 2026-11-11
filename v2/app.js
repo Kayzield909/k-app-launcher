@@ -12,16 +12,19 @@ const FILES = {
   holdings: "output/holdings_scan_dash.json",
   log: "SIGNAL_LOG.md",
   sync: "data/t212_sync.md",
-  sparks: "output/sparklines.json"
+  sparks: "output/sparklines.json",
+  alerts: "output/alerts.json"
 };
 const LINKS = {
   sync: "https://github.com/Kayzield909/aatrox-capital/actions/workflows/t212-sync.yml",
   dashboard: "https://claude.ai/artifact/TcP9PAnqqYBuxmdXHWeQTT",
   t212: "https://app.trading212.com/",
   repo: "https://github.com/Kayzield909/aatrox-capital",
+  secret: "https://github.com/Kayzield909/aatrox-capital/settings/secrets/actions/new",
+  testPush: "https://github.com/Kayzield909/aatrox-capital/actions/workflows/test-push.yml",
   newToken: "https://github.com/settings/personal-access-tokens/new"
 };
-const TABS = { signals: "Signals", swing: "Swing", holdings: "Holdings", log: "Log" };
+const TABS = { signals: "Signals", swing: "Swing", holdings: "Holdings", alerts: "Alerts", log: "Log" };
 
 // ---------- tiny DOM helpers (textContent only: no data ever goes through innerHTML) ----------
 const $ = (s, r = document) => r.querySelector(s);
@@ -123,15 +126,19 @@ async function loadAll(token) {
     setups: out.setups ? JSON.parse(out.setups) : [],
     holdings: out.holdings ? JSON.parse(out.holdings) : [],
     log: out.log || "", sync: out.sync || "",
-    sparks: out.sparks ? JSON.parse(out.sparks) : {}
+    sparks: out.sparks ? JSON.parse(out.sparks) : {},
+    alerts: out.alerts ? JSON.parse(out.alerts) : []
   };
 }
 async function refresh(manual) {
   if (state.loading || !state.token) return;
   state.loading = true; $("#refresh").classList.add("spin");
   try {
+    const before = unreadCount();
     const files = await loadAll(state.token);
     state.data = files; state.fetchedAt = new Date().toISOString();
+    const after = unreadCount();
+    if (after > before && before >= 0) playAlert(files.alerts.slice(0, after));
     store.set("aatrox-data", JSON.stringify({ files, fetchedAt: state.fetchedAt }));
     banner(null);
     render(false);
@@ -224,7 +231,9 @@ function render(animate) {
   $("#asof").textContent = "";
   if (asof) $("#asof").append("Run " + dShort(asof), h("br"), h("span", { class: "faint" }, "Synced " + fmtFetched()));
   if (!d) { for (let i = 0; i < 6; i++) v.append(h("div", { class: "skel" })); return; }
-  ({ signals: viewSignals, swing: viewSwing, holdings: viewHoldings, log: viewLog })[state.tab](v, d);
+  ({ signals: viewSignals, swing: viewSwing, holdings: viewHoldings, alerts: viewAlerts, log: viewLog })[state.tab](v, d);
+  const n = unreadCount(), badge = $("#alert-badge");
+  if (badge) { badge.textContent = n > 9 ? "9+" : String(n); badge.classList.toggle("hidden", !n); }
   if (animate) { v.classList.remove("view-enter"); void v.offsetWidth; v.classList.add("view-enter"); }
 }
 
@@ -405,6 +414,115 @@ function viewHoldings(v, d) {
   };
   search.addEventListener("input", () => { state.holdQuery = search.value; draw(); });
   draw();
+}
+
+// ---------- Alerts ----------
+const SOUND = { chime: "../sounds/aatrox-chime.mp3", warn: "../sounds/aatrox-warn.mp3" };
+function playSound(which) {
+  if (store.get("aatrox-sound") === "off") return;
+  try { const a = new Audio(SOUND[which] || SOUND.chime); a.volume = 0.9; a.play().catch(() => {}); } catch (e) {}
+}
+function playAlert(list) { playSound((list || []).some(a => a.kind === "warn") && !(list || []).some(a => a.kind === "buy") ? "warn" : "chime"); }
+function unreadCount() {
+  const list = (state.data && state.data.alerts) || [];
+  const seen = store.get("aatrox-alerts-seen");
+  if (!seen) return Math.min(list.length, 99);
+  const i = list.findIndex(a => a.id === seen);
+  return i < 0 ? list.length : i;
+}
+const b64u = buf => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+const fromB64u = s => Uint8Array.from(atob(s.replace(/-/g, "+").replace(/_/g, "/") + "=".repeat((4 - s.length % 4) % 4)), c => c.charCodeAt(0));
+
+async function pushStatus() {
+  if (!("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window)) return "unsupported";
+  if (Notification.permission === "denied") return "denied";
+  const reg = await navigator.serviceWorker.ready;
+  const sub = await reg.pushManager.getSubscription();
+  return sub && store.get("aatrox-vapid") ? "on" : "off";
+}
+async function pushConfig() {
+  const perm = await Notification.requestPermission();
+  if (perm !== "granted") throw new Error("Notifications weren't allowed. Allow them for Aatrox in Android settings, then try again.");
+  const reg = await navigator.serviceWorker.ready;
+  let keys = null;
+  try { keys = JSON.parse(store.get("aatrox-vapid") || "null"); } catch (e) {}
+  if (!keys) {
+    // this phone's own signing key: it leaves the phone only inside the code you paste into GitHub
+    const kp = await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, ["sign", "verify"]);
+    const jwk = await crypto.subtle.exportKey("jwk", kp.privateKey);
+    keys = { d: jwk.d, x: jwk.x, y: jwk.y, pub: b64u(await crypto.subtle.exportKey("raw", kp.publicKey)) };
+    store.set("aatrox-vapid", JSON.stringify(keys));
+  }
+  let sub = await reg.pushManager.getSubscription();
+  if (sub && sub.options && sub.options.applicationServerKey && b64u(sub.options.applicationServerKey) !== keys.pub) { await sub.unsubscribe(); sub = null; }
+  if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: fromB64u(keys.pub) });
+  return JSON.stringify({ v: 1, vapid: { d: keys.d, x: keys.x, y: keys.y }, subs: [sub.toJSON()] });
+}
+
+function viewAlerts(v, d) {
+  const list = d.alerts || [];
+  const unread = unreadCount();
+  const nc = h("div", { class: "card" });
+  v.append(h("div", { class: "h2" }, "Notifications"), nc);
+  (async () => {
+    const st = await pushStatus().catch(() => "unsupported");
+    if (st === "unsupported") { nc.append(h("div", { class: "sub" }, "This browser can't receive notifications. Open Aatrox from its home-screen icon in Chrome.")); return; }
+    if (st === "denied") { nc.append(h("div", { class: "sub" }, "Notifications are blocked for Aatrox. Allow them in Android Settings → Apps → Aatrox → Notifications, then come back.")); return; }
+    const dot = h("i", { class: st === "on" ? "bg-buy" : "bg-hold" }), label = h("span", null, st === "on" ? "On for this phone" : "Off");
+    nc.append(h("div", { class: "nstate" }, dot, label),
+      h("div", { class: "note" }, "Alerts are checked after every weekday close and on Friday nights. Busy days arrive as one summary."));
+    const out = h("div");
+    const btn = h("button", { class: "btn primary", type: "button" }, st === "on" ? "Show set-up code again" : "Turn on notifications");
+    btn.addEventListener("click", async () => {
+      btn.disabled = true; btn.textContent = "Setting up…"; out.textContent = "";
+      try {
+        const cfg = await pushConfig();
+        const ta = h("textarea", { class: "code", readonly: true, rows: 5, "aria-label": "Set-up code" }); ta.value = cfg;
+        const copy = h("button", { class: "btn", type: "button" }, "Copy set-up code");
+        copy.addEventListener("click", async () => {
+          try { await navigator.clipboard.writeText(cfg); copy.textContent = "Copied ✓"; } catch (e) { ta.select(); copy.textContent = "Select and copy the text above"; }
+        });
+        out.append(
+          h("ol", { class: "steps" },
+            h("li", null, "Copy the set-up code."),
+            h("li", null, "Open ", h("a", { href: LINKS.secret, target: "_blank", rel: "noopener" }, "GitHub → new repository secret"), ", name it ", h("b", null, "PUSH_CONFIG"), ", paste, save."),
+            h("li", null, "Run ", h("a", { href: LINKS.testPush, target: "_blank", rel: "noopener" }, "Test push"), " to check it arrives.")),
+          ta, copy,
+          h("div", { class: "note" }, "The code holds this phone's push address and a signing key the phone just made. Keep it in GitHub's secret only; paste it nowhere else."));
+        dot.className = "bg-buy"; label.textContent = "On for this phone";
+        btn.textContent = "Show set-up code again"; btn.disabled = false;
+      } catch (e) { out.append(h("div", { class: "warn note" }, e.message)); btn.textContent = "Try again"; btn.disabled = false; }
+    });
+    nc.append(btn, out);
+  })();
+
+  const sc = h("div", { class: "card" });
+  const tog = h("input", { type: "checkbox", "aria-label": "Play the Aatrox chime in the app" }); tog.checked = store.get("aatrox-sound") !== "off";
+  tog.addEventListener("change", () => store.set("aatrox-sound", tog.checked ? "on" : "off"));
+  const playBtn = (cls, which, name, sub) => h("button", { class: "play " + cls, type: "button", onclick: () => { store.set("aatrox-sound", "on"); tog.checked = true; playSound(which); } },
+    "▶", h("span", null, h("b", null, name), h("small", null, sub)));
+  sc.append(
+    h("div", { class: "sounds" }, playBtn("", "chime", "Aatrox chime", "Buy-side alerts · touch, bounce, peak"), playBtn("warnc", "warn", "Aatrox warning", "Stops broken, sell warnings")),
+    h("label", { class: "toggle" }, h("span", null, "Play the chime when alerts arrive with the app open"), tog),
+    h("a", { class: "btn", href: "../sounds/aatrox-chime.ogg", download: "Aatrox chime.ogg" }, "Download chime for Android notifications"),
+    h("div", { class: "note" }, "Android picks the sound for app notifications, not the app. To hear the chime on your lock screen: download it, then Settings → Apps → Aatrox → Notifications → tap the alerts category → Sound → choose “Aatrox chime”. If it isn't listed, move the file into your phone's Notifications folder with the Files app first. Menus vary a little by phone."));
+  v.append(h("div", { class: "h2" }, "Sound"), sc);
+
+  v.append(h("div", { class: "h2" }, list.length ? `Alerts · ${unread ? unread + " new" : "all read"}` : "Alerts"));
+  const L = h("div", { class: "list" });
+  if (!list.length) L.append(h("div", { class: "empty" }, "No alerts yet. The first ones arrive after tonight's close."));
+  let day = null;
+  list.slice(0, 120).forEach((a, i) => {
+    if (a.date !== day) { day = a.date; L.append(h("div", { class: "aday" }, dLong(day))); }
+    const inScores = d.scores.some(r => r.ticker === a.ticker);
+    L.append(h("button", { class: "row alert" + (i < unread ? " unread" : ""), onclick: () => {
+      if (inScores) openStock(a.ticker); else { const hh = d.holdings.find(x => x.ticker === a.ticker); if (hh) openHolding(hh); } } },
+      h("div", { class: "l1" }, h("i", { class: "kdot bg-" + (a.kind === "buy" ? "buy" : a.kind === "warn" ? "sell" : "hold") }), h("span", { class: "atitle" }, a.title)),
+      h("div", { class: "note" }, a.body)));
+  });
+  v.append(L);
+  if (list.length) store.set("aatrox-alerts-seen", list[0].id);
+  const badge = $("#alert-badge"); if (badge) badge.classList.add("hidden");
 }
 
 // ---------- Log ----------
@@ -628,6 +746,10 @@ document.addEventListener("DOMContentLoaded", () => {
   });
   let rt; window.addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(() => state.data && !$("#app").classList.contains("hidden") && render(false), 200); });
   setupPullToRefresh();
+  if ("serviceWorker" in navigator) navigator.serviceWorker.addEventListener("message", e => {
+    if (e.data && e.data.type === "aatrox-alert") refresh(true);
+  });
+  if (new URLSearchParams(location.search).get("from") === "push") setTimeout(() => playSound("chime"), 1400);
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("../sw.js").catch(() => {});
 
   const start = () => (state.token ? showApp() : showOnboarding());
