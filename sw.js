@@ -1,5 +1,5 @@
 // App shell only. GitHub API calls (your data) are never touched or cached here.
-const VERSION = "c9d0820";
+const VERSION = "e94a65f";
 const CACHE = "aatrox-" + VERSION;
 const SHELL = ["./", "index.html", "styles.css", "app.js", "manifest.webmanifest",
   "icons/icon-192.png", "icons/icon-512.png", "icons/favicon-64.png", "icons/maskable-512.png",
