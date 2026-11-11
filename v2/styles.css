@@ -186,3 +186,41 @@ nav#tabs button[aria-selected=true] svg { stroke: var(--gold); transform: transl
 }
 
 .beta { font-size: .62rem; font-weight: 700; letter-spacing: .06em; color: var(--gold); border: 1px solid #5a4728; border-radius: 6px; padding: 1px 5px; }
+
+/* ---------- V2.1 charts ---------- */
+.pc { margin-top: 12px; }
+.pc-head { padding: 2px 2px 8px; }
+.pc-price { font-size: 2rem; font-weight: 650; letter-spacing: -.01em; line-height: 1.1; }
+.pc-chg { margin-top: 4px; font-size: .9rem; font-weight: 600; }
+.pc-when { color: var(--muted); font-weight: 500; }
+.pc-box { margin: 0 -16px; touch-action: pan-y; user-select: none; -webkit-user-select: none; }
+.pc-svg { display: block; overflow: visible; }
+.pc-axis { font-size: 10px; fill: #6f635c; }
+.pc-axis.gold { fill: var(--gold); }
+.pc-pill { font-size: 10.5px; font-weight: 650; }
+.pc-draw { stroke-dasharray: 1; stroke-dashoffset: 1; animation: pcdraw .55s cubic-bezier(.4,0,.2,1) forwards; }
+.pc-fade { opacity: 0; animation: pcfade .5s ease .2s forwards; }
+@keyframes pcdraw { to { stroke-dashoffset: 0; } }
+@keyframes pcfade { to { opacity: 1; } }
+.pc-tabs { display: flex; justify-content: space-between; margin: 10px 0 0; padding: 4px; background: var(--panel); border-radius: 12px; }
+.pc-tabs button { flex: 1; padding: 8px 0; border-radius: 9px; font-size: .78rem; font-weight: 650; color: var(--muted); transition: background .15s, color .15s; }
+.pc-tabs button[aria-pressed=true] { background: var(--panel2); color: var(--fg); box-shadow: inset 0 0 0 1px var(--line); }
+.pc-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+.pc-chip { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 999px; border: 1px solid var(--line); font-size: .72rem; color: var(--faint); }
+.pc-chip i { width: 8px; height: 8px; border-radius: 50%; background: var(--faint); }
+.pc-chip[aria-pressed=true] { color: var(--fg); border-color: #4a3e38; }
+.pc-chip-levels[aria-pressed=true] i { background: var(--buy); }
+.pc-chip-value[aria-pressed=true] i { background: var(--gold); }
+.pc-chip-cost[aria-pressed=true] i { background: #8fb3ff; }
+.pc-chip-avgs[aria-pressed=true] i { background: var(--watch); }
+.peband { display: block; overflow: visible; }
+
+/* Trading 212-style list rows */
+.row .l1.tl { align-items: center; gap: 10px; }
+.row .who { min-width: 0; flex: 1; }
+.row .who .nm { display: block; }
+.row .who .held { margin-left: 6px; }
+.row .px { text-align: right; display: flex; flex-direction: column; align-items: flex-end; min-width: 76px; }
+.row .px b { font-weight: 650; }
+.row .px span { font-size: .78rem; font-weight: 600; }
+.spark { flex: none; }

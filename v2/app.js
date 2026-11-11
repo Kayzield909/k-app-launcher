@@ -11,7 +11,8 @@ const FILES = {
   setups: "output/swing_setups.json",
   holdings: "output/holdings_scan_dash.json",
   log: "SIGNAL_LOG.md",
-  sync: "data/t212_sync.md"
+  sync: "data/t212_sync.md",
+  sparks: "output/sparklines.json"
 };
 const LINKS = {
   sync: "https://github.com/Kayzield909/aatrox-capital/actions/workflows/t212-sync.yml",
@@ -55,7 +56,7 @@ const dShort = d => d ? `${Number(d.slice(8, 10))} ${MON[Number(d.slice(5, 7)) -
 const dLong = d => d ? `${dShort(d)} ${d.slice(0, 4)}` : "";
 function money(v, ccy) {
   if (v == null) return "n/a";
-  const n = Math.abs(v) >= 1000 ? v.toLocaleString("en-GB", { maximumFractionDigits: 0 }) : v.toLocaleString("en-GB", { maximumFractionDigits: 2 });
+  const n = Math.abs(v) >= 1000 ? v.toLocaleString("en-GB", { maximumFractionDigits: 0 }) : v.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   if (ccy === "GBX" || ccy === "GBp") return n + "p";
   if (ccy === "GBP") return "£" + n;
   if (ccy === "EUR") return "€" + n;
@@ -121,7 +122,8 @@ async function loadAll(token) {
     scores: JSON.parse(out.scores),
     setups: out.setups ? JSON.parse(out.setups) : [],
     holdings: out.holdings ? JSON.parse(out.holdings) : [],
-    log: out.log || "", sync: out.sync || ""
+    log: out.log || "", sync: out.sync || "",
+    sparks: out.sparks ? JSON.parse(out.sparks) : {}
   };
 }
 async function refresh(manual) {
@@ -145,6 +147,23 @@ function fmtFetched() {
   if (!state.fetchedAt) return "earlier";
   const d = new Date(state.fetchedAt);
   return `${dShort(state.fetchedAt.slice(0, 10))}, ${d.toTimeString().slice(0, 5)}`;
+}
+// Daily closes for one stock (5 years), fetched when its sheet opens; cached on the phone.
+const seriesMem = {};
+async function loadSeries(ticker) {
+  const asof = state.data && state.data.scores[0] ? state.data.scores[0].as_of : "";
+  if (seriesMem[ticker] && seriesMem[ticker].asof === asof) return seriesMem[ticker].rows;
+  try {
+    const c = JSON.parse(store.get("aatrox-series-" + ticker) || "null");
+    if (c && c.asof === asof) { seriesMem[ticker] = c; return c.rows; }
+  } catch (e) {}
+  const txt = await gh(`data/daily/${ticker}.csv`, state.token);
+  const rows = txt.trim().split("\n").map(l => l.split(",")).filter(p => p.length === 2)
+    .map(([d, c]) => ({ d, c: Number(c) })).reverse();
+  const entry = { asof, rows };
+  seriesMem[ticker] = entry;
+  store.set("aatrox-series-" + ticker, JSON.stringify(entry));
+  return rows;
 }
 function banner(msg) { const b = $("#banner"); b.textContent = msg || ""; b.classList.toggle("hidden", !msg); }
 
@@ -243,11 +262,16 @@ function viewSignals(v, d) {
   const L = h("div", { class: "list" });
   if (!list.length) L.append(h("div", { class: "empty" }, "Nothing in this filter."));
   for (const r of list) {
+    const sp = (d.sparks || {})[r.ticker];
     L.append(h("button", { class: "row", onclick: () => openStock(r.ticker) },
-      h("div", { class: "l1" }, h("span", { class: "tk" }, r.ticker), h("span", { class: "nm" }, r.name),
-        r.held ? h("span", { class: "held" }, "HELD") : null, pill(r.signal)),
+      h("div", { class: "l1 tl" },
+        h("div", { class: "who" }, h("div", null, h("span", { class: "tk" }, r.ticker), r.held ? h("span", { class: "held" }, "HELD") : null),
+          h("div", { class: "nm" }, r.name)),
+        sp ? Sparkline(sp.closes) : null,
+        h("div", { class: "px" }, h("b", null, money(r.price, r.ccy)),
+          sp ? h("span", { class: sp.chg1d_pct >= 0 ? "up" : "down" }, pct(sp.chg1d_pct, 2)) : null)),
       h("div", { class: "l2" },
-        h("span", null, h("b", null, money(r.price, r.ccy))),
+        pill(r.signal),
         h("span", null, "P/sticker ", h("b", null, r.price_to_sticker == null ? "n/a" : num(r.price_to_sticker, 2) + "×")),
         r.peg != null ? h("span", null, "PEG ", h("b", null, num(r.peg, 2))) : null,
         r.vs_cost_pct != null ? h("span", { class: r.vs_cost_pct >= 0 ? "up" : "down" }, pct(r.vs_cost_pct) + " vs cost") : null,
@@ -483,9 +507,17 @@ function openStock(ticker) {
   openSheet(sh => {
     sh.append(h("div", { class: "sh-head" },
       h("div", null, h("h2", null, r.ticker), h("div", { class: "nm" }, `${r.name} · ${r.theme}`)), pill(r.signal)));
+    const chartHost = h("div", { class: "pc" }, h("div", { class: "skel", style: { height: "300px" } }));
+    sh.append(chartHost);
+    loadSeries(r.ticker).then(rows => {
+      if (!chartHost.isConnected) return;
+      PriceChart(chartHost, { rows, ccy: r.ccy, money, levels: {
+        support: w ? w.support : null, buyZoneTop: w ? w.buy_zone_top : null, stop: w ? w.stop : null, target: w ? w.target : null,
+        sticker: r.sticker, mos: r.mos, cost: r.avg_cost } });
+    }).catch(e => { chartHost.textContent = ""; chartHost.append(h("div", { class: "note" }, "Chart unavailable: " + e.message)); });
     sh.append(h("div", { class: "kpis" },
-      kpi("Price", money(r.price, r.ccy), r.price_date ? "on " + dShort(r.price_date) : null),
       kpi("Score", `${r.score}/100`),
+      kpi("52-week", r.chg52 == null ? "n/a" : pct(r.chg52), r.price_date ? "to " + dShort(r.price_date) : null),
       kpi("Sticker", money(r.sticker, r.ccy)),
       kpi("Buy below", money(r.mos, r.ccy)),
       kpi("Price ÷ sticker", r.price_to_sticker == null ? "n/a" : num(r.price_to_sticker, 2) + "×"),
@@ -502,6 +534,20 @@ function openStock(ticker) {
       ["5-yr median P/E", r.hist_pe == null ? "n/a" : num(r.hist_pe)], ["P/E vs history", r.pe_vs_hist == null ? r.pe_hist_signal : `${r.pe_hist_signal} (${num(r.pe_vs_hist, 2)}×)`],
       ["Earnings trend", r.earnings_trend], ["Sticker basis", r.sticker_basis]])));
     if (r.pe_note) sh.append(h("div", { class: "note" }, "PEG caution: " + r.pe_note));
+    const vals = (r.pe_hist_vals || []).filter(v => v > 0);
+    if (vals.length >= 2) {
+      const band = PeBand(vals, r.pe && r.pe > 0 ? r.pe : null, r.hist_pe);
+      if (band) sh.append(...section("P/E against its last 5 years", h("div", { class: "card" }, band,
+        h("div", { class: "note" }, r.pe && r.pe > 0 ? `Grey dots are the last five fiscal-year P/Es. Today's ${num(r.pe)} is ${r.pe_hist_signal.toLowerCase()}.` : "Loss-making now, so no current P/E."))));
+    }
+    const rsiTxt = r.rsi == null ? null : `${num(r.rsi, 0)}${r.rsi >= 70 ? " · overbought" : r.rsi <= 30 ? " · oversold" : ""}`;
+    sh.append(...section("Technicals", kv([
+      ["Trend (10-month average)", w ? w.trend : null],
+      ["50-day average", r.ma50 == null ? null : money(r.ma50, r.ccy)],
+      ["200-day average", r.ma200 == null ? null : money(r.ma200, r.ccy)],
+      ["Price vs 200-day", r.ma200 ? pct((r.price / r.ma200 - 1) * 100) : null],
+      ["50-day vs 200-day", r.ma50 && r.ma200 ? (r.ma50 > r.ma200 ? "Above (uptrend)" : "Below (downtrend)") : null],
+      ["RSI (14-day)", rsiTxt]])));
     sh.append(...section("Quality", kv([
       ["ROIC", r.roic == null ? null : num(r.roic) + "%"], ["FCF margin", r.fcf_margin == null ? null : num(r.fcf_margin) + "%"],
       ["Debt ÷ FCF", r.debt_fcf == null ? "n/a" : num(r.debt_fcf) + " yrs"], ["Piotroski", r.piotroski == null ? null : r.piotroski + "/9"],
@@ -512,7 +558,7 @@ function openStock(ticker) {
       ["Buy zone up to", w.buy_zone_top == null ? null : money(w.buy_zone_top, w.ccy)],
       ["Stop", w.stop == null ? null : `${money(w.stop, w.ccy)} (−${num(w.risk_pct)}%)`],
       ["Target", w.target == null ? null : `${money(w.target, w.ccy)} (+${num(w.reward_pct)}%)`],
-      ["Reward ÷ risk", w.rr == null ? null : num(w.rr, 1)], ["RSI", num(r.rsi, 0)], ["vs 200-day average", r.disc_200d == null ? null : pct(-r.disc_200d)]])),
+      ["Reward ÷ risk", w.rr == null ? null : num(w.rr, 1)]])),
       w.swing_reason ? h("div", { class: "note" }, w.swing_reason) : null);
     sh.append(...section("Dates", kv([["Next earnings", dLong(r.next_earnings)], ["Scored", dLong(r.as_of)]])));
     if (r.note) sh.append(h("div", { class: "note" }, r.note));
@@ -562,7 +608,7 @@ function setupPullToRefresh() {
   });
   // swipe the sheet down to close
   const sh = $("#sheet"); let sy = null;
-  sh.addEventListener("touchstart", e => { sy = sh.scrollTop <= 0 ? e.touches[0].clientY : null; }, { passive: true });
+  sh.addEventListener("touchstart", e => { sy = sh.scrollTop <= 0 && !e.target.closest(".pc") ? e.touches[0].clientY : null; }, { passive: true });
   sh.addEventListener("touchmove", e => { if (sy != null) { const d = Math.max(0, e.touches[0].clientY - sy); sh.style.transform = d ? `translateY(${d}px)` : ""; } }, { passive: true });
   sh.addEventListener("touchend", e => {
     if (sy == null) return;
