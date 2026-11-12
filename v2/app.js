@@ -18,7 +18,9 @@ const FILES = {
   notes: "output/mood_notes.json",
   logos: "output/logos.json",
   cleanup: "output/pie_cleanup.json",
-  reviews: "output/review_scores.json"
+  reviews: "output/review_scores.json",
+  unitecon: "output/unit_economics.json",
+  research: "output/research.json"
 };
 const LINKS = {
   sync: "https://github.com/Kayzield909/aatrox-capital/actions/workflows/t212-sync.yml",
@@ -137,7 +139,9 @@ async function loadAll(token) {
     notes: out.notes ? JSON.parse(out.notes) : null,
     logos: out.logos ? JSON.parse(out.logos) : {},
     cleanup: out.cleanup ? JSON.parse(out.cleanup) : { pies: [] },
-    reviews: out.reviews ? JSON.parse(out.reviews) : { scores: {} }
+    reviews: out.reviews ? JSON.parse(out.reviews) : { scores: {} },
+    unitecon: out.unitecon ? JSON.parse(out.unitecon) : {},
+    research: out.research ? JSON.parse(out.research) : { entries: [] }
   };
 }
 async function refresh(manual) {
@@ -707,6 +711,7 @@ function viewLog(v, d) {
   }
   v.append(lc);
 
+  v.append(...researchLibrary(d));
   v.append(h("div", { class: "h2" }, "Where to read the crowd"), subredditCard());
   v.append(h("div", { class: "h2" }, "Shortcuts"));
   v.append(h("div", { class: "card links" },
@@ -827,6 +832,7 @@ function openStock(ticker) {
       ["ROIC", r.roic == null ? null : num(r.roic) + "%"], ["FCF margin", r.fcf_margin == null ? null : num(r.fcf_margin) + "%"],
       ["Debt ÷ FCF", r.debt_fcf == null ? "n/a" : num(r.debt_fcf) + " yrs"], ["Piotroski", r.piotroski == null ? null : r.piotroski + "/9"],
       ["Gross margin", r.gross_margin == null ? null : num(r.gross_margin) + "%"], ["Need", r.need]])));
+    sh.append(...growthSection("watchlist", r.ticker), ...researchSection("watchlist", r.ticker));
     if (w) sh.append(...section("Swing setup", kv([
       ["Verdict", w.swing === "NO TRADE" ? "No trade" : w.swing], ["Setup", setupLabel(w.setup)], ["Trend", w.trend],
       ["Support", w.support == null ? null : `${money(w.support, w.ccy)}${w.support_touches ? " · " + w.support_touches + " touches" : ""}`],
@@ -867,10 +873,113 @@ function openHolding(r) {
     sh.append(...section("Red flags", h("div", { class: "card" },
       flags.length ? h("ul", { style: { margin: "0", "padding-left": "18px" } }, flags.map(f => h("li", { class: "warn" }, f))) : h("div", { class: "sub" }, "Clear: the business checks pass. This is about price and growth, not a failing business."),
       h("div", { class: "note" }, r.checks === "full" ? "Full checks: ROIC, free cash flow, debt, Piotroski, Altman Z, gross margin. Two or more flags = sell warning." : "Checks " + r.checks + "."))));
+    sh.append(...growthSection("holdings", r.ticker), ...researchSection("holdings", r.ticker));
     sh.append(...section("Your position", kv([["First bought", dLong(r.first_buy)], ["vs cost", r.vs_cost_pct == null ? "after next sync" : pct(r.vs_cost_pct)]])));
     if (!q) sh.append(h("p", { class: "note" }, "Not on the watchlist, so there's no sticker price or swing setup. Add it to the watchlist for the full score."));
     sh.append(h("a", { class: "btn", href: `https://stockanalysis.com/stocks/${r.ticker.toLowerCase()}/statistics/`, target: "_blank", rel: "noopener" }, "Open statistics ↗"));
   });
+}
+// ---------- growth test and research library ----------
+const GV = { "Profitable": "buy", "Scales to profit": "watch", "Doesn't scale": "sell", "Unclear": "hold", "n/a": "hold" };
+const CUR = c => ({ USD: ["$", "¢"], GBP: ["£", "p"], EUR: ["€", "c"] }[c] || ["", "%"]);
+function amtM(v, ccy) {
+  if (v == null) return "n/a";
+  const sym = CUR(ccy)[0] || (ccy ? ccy + " " : "");
+  const a = Math.abs(v), sign = v < 0 ? "−" : "";
+  return sign + (a >= 1000 ? `${sym}${(a / 1000).toFixed(1)}bn` : `${sym}${Math.round(a)}m`);
+}
+function growthOf(group, t) { const u = state.data.unitecon || {}; return (u[group] || {})[t] || null; }
+function growthChart(u) {
+  const q = (u.quarters || []).filter(x => x.rev != null && x.costs != null).slice().reverse();
+  const f = u.total_fit;
+  if (q.length < 4) return null;
+  const W = 320, H = 190, L = 8, R = 8, T = 10, B = 26;
+  const xs = q.map(x => x.rev), ys = q.map(x => x.costs);
+  let x1 = Math.max(...xs) * 1.08;
+  const be = u.breakeven_rev;
+  const showBe = be && be <= Math.max(...xs) * 2.6 && u.verdict !== "Profitable";
+  if (showBe) x1 = Math.max(x1, be * 1.08);
+  const x0 = 0, y0 = 0, y1 = Math.max(x1, ...ys) * 1.05;
+  const X = v => L + (v - x0) / (x1 - x0) * (W - L - R), Y = v => H - B - (v - y0) / (y1 - y0) * (H - T - B);
+  const g = s("svg", { class: "gchart", viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Quarterly revenue against total costs, with the cost line fitted through them" });
+  // y1 >= x1, so the loss side of the diagonal is the quad (0,0) (x1,x1) (x1,y1) (0,y1)
+  g.append(s("polygon", { class: "gc-loss", points: `${X(0)},${Y(0)} ${X(x1)},${Y(x1)} ${X(x1)},${Y(y1)} ${X(0)},${Y(y1)}` }));
+  g.append(s("line", { class: "gc-even", x1: X(0), y1: Y(0), x2: X(x1), y2: Y(x1) }));
+  g.append(s("text", { class: "gc-lab", x: X(x1) - 4, y: Y(x1) + 14, "text-anchor": "end" }, "costs = revenue"));
+  g.append(s("text", { class: "gc-lab loss", x: X(0) + 6, y: T + 12 }, "loss"), s("text", { class: "gc-lab prof", x: X(x1) - 6, y: H - B - 6, "text-anchor": "end" }, "profit"));
+  if (f && f.per1 > 0 && f.fixed > 0) {
+    const xe = showBe ? Math.max(be, Math.max(...xs)) : x1;
+    g.append(s("line", { class: "gc-fit", x1: X(0), y1: Y(f.fixed), x2: X(xe), y2: Y(f.fixed + f.per1 * xe) }));
+    if (showBe) g.append(s("circle", { class: "gc-be", cx: X(be), cy: Y(be), r: 4 }));
+  }
+  q.forEach((p, i) => g.append(s("circle", { class: "gc-pt" + (p.costs > p.rev ? " loss" : ""), cx: X(p.rev), cy: Y(p.costs), r: i === q.length - 1 ? 5 : 3.2 })));
+  const last = q[q.length - 1];
+  const nearEdge = X(last.rev) > W - 70;
+  g.append(s("text", { class: "gc-lab", x: X(last.rev) + (nearEdge ? -9 : 9), y: Y(last.costs) + (nearEdge ? -9 : 4), "text-anchor": nearEdge ? "end" : "start" }, last.q));
+  g.append(s("line", { class: "gc-ax", x1: L, y1: H - B, x2: W - R, y2: H - B }));
+  g.append(s("text", { class: "gc-lab", x: W - R, y: H - 8, "text-anchor": "end" }, `revenue a ${u.period || "quarter"} → ${amtM(x1, u.ccy)}`));
+  g.append(s("text", { class: "gc-lab", x: L, y: H - 8 }, "0"));
+  return g;
+}
+function growthSection(group, t) {
+  const u = growthOf(group, t);
+  if (!u) return [];
+  const [, sub] = CUR(u.ccy), one = CUR(u.ccy)[0] ? CUR(u.ccy)[0] + "1" : "unit";
+  const card = h("div", { class: "card" },
+    h("div", { class: "sh-q" }, h("span", { class: "pill g-" + (GV[u.verdict] || "hold") }, u.verdict),
+      u.latest && u.latest.om != null ? h("span", { class: "sub" }, `Operating margin ${pct(u.latest.om)} in ${u.latest.q}`) : null),
+    h("div", { class: "mnote", style: { "margin-top": "8px" } }, u.why || ""));
+  const tf = u.total_fit, gf = u.gross_fit;
+  if (tf && u.verdict !== "n/a") {
+    const ch = growthChart(u);
+    if (ch) card.append(ch, h("div", { class: "note" }, "Each dot is a " + (u.period || "quarter") + ": revenue across, total costs up. Above the diagonal is a loss. The dashed line is the fitted cost line: where it starts on the left is the fixed cost, its slope is the cost of each extra sale" + (u.breakeven_rev && u.breakeven_x <= 2.6 && u.verdict !== "Profitable" ? "; the ring is breakeven." : ".")));
+    card.append(h("div", { class: "kpis" },
+      kpi(`Per extra ${one} of sales`, `${tf.cents}${sub}`, "after all costs"),
+      kpi("Gross, per extra " + one, gf ? `${gf.cents}${sub}` : "n/a", gf ? "before overheads" : (u.gross_note ? "source data jumps" : "no gross line")),
+      kpi("Fixed costs", amtM(tf.fixed, u.ccy), `a ${u.period || "quarter"} · fit R² ${tf.r2}`),
+      u.verdict === "Profitable" ? kpi("Breakeven", "Past it", u.breakeven_x == null ? "already profitable" : `at ${u.breakeven_x}× today's revenue`)
+        : kpi("Breakeven", u.breakeven_x == null ? "n/a" : `${u.breakeven_x}× revenue`, u.breakeven_rev == null ? "" : amtM(u.breakeven_rev, u.ccy) + " a " + (u.period || "quarter"))));
+    const facts = [];
+    if (u.ttm_fcf != null) facts.push(`Free cash flow, last 12 months: ${amtM(u.ttm_fcf, u.ccy)}`);
+    if (u.shares_yoy != null) facts.push(`Share count ${pct(u.shares_yoy)} on a year ago`);
+    if (facts.length) card.append(h("div", { class: "note" }, facts.join(" · ")));
+  }
+  card.append(h("div", { class: "note" }, `A straight line through the last ${u.n || 8} ${u.period || "quarter"}s of reported results, re-fitted every Friday. Cost cuts and one-offs move it, so read it as what the last 2 years say. `,
+    u.source ? h("a", { href: u.source, target: "_blank", rel: "noopener" }, "Quarterly results ↗") : null));
+  return section("Does growth fix it?", card);
+}
+const CL = { holds: ["✓", "buy", "Still holds"], broken: ["✗", "sell", "Broken"], unchecked: ["?", "hold", "Not testable yet"] };
+function researchCard(e, withTicker) {
+  const since = c => !c.since ? "" : c.first_check ? ` · first checked ${dLong(c.since)}` : /^\d{4}-\d{2}-\d{2}$/.test(c.since) ? ` · since ${dLong(c.since)}` : ` · since ${c.since}`;
+  return h("div", { class: "card rcard" },
+    h("a", { class: "rt", href: e.url, target: "_blank", rel: "noopener" }, withTicker ? e.ticker + " · " : "", e.title, " ↗"),
+    h("div", { class: "faint" }, `${e.source} · ${dLong(e.date)} · ${e.stance}` + (e.data_to ? ` · data to ${dLong(e.data_to)}` : "")),
+    h("div", { class: "rscore" }, h("b", { class: e.broken ? "g-trim" : "g-buy" }, `${e.holds} of ${e.claims.length} claims still hold`), " against today's numbers"),
+    ...e.claims.map(c => h("div", { class: "claim" },
+      h("i", { class: "cmark bg-" + CL[c.status][1] }, CL[c.status][0]),
+      h("div", null, h("div", null, c.text), h("div", { class: "note" }, `${CL[c.status][2]}${since(c)}. ${c.detail || ""}`)))),
+    e.method ? h("details", null, h("summary", null, "Method and caveats"), h("div", { class: "note" }, e.method), e.caveats ? h("div", { class: "note" }, e.caveats) : null) : null);
+}
+function researchSection(group, t) {
+  const list = ((state.data.research || {}).entries || []).filter(e => e.ticker === t && (!e.group || e.group === group));
+  if (!list.length) return [];
+  return section("Research", ...list.map(e => researchCard(e, false)),
+    h("div", { class: "note" }, "Outside research, saved with its date. Each claim is re-checked every Friday, so you can see what still stands. Send Claude a link or transcript to add one."));
+}
+function researchLibrary(d) {
+  const list = (d.research || {}).entries || [];
+  const head = h("div", { class: "h2" }, "Research library");
+  if (!list.length) return [head, h("div", { class: "card sub" }, "Nothing saved yet. Send Claude a link or transcript and the claims that the numbers can test.")];
+  return [head, ...list.map(e => {
+    const c = researchCard(e, true);
+    c.classList.add("tap");
+    c.addEventListener("click", ev => {
+      if (ev.target.closest("a,details")) return;
+      if (d.scores.some(r => r.ticker === e.ticker) && e.group !== "holdings") openStock(e.ticker);
+      else { const hh = d.holdings.find(x => x.ticker === e.ticker); if (hh) openHolding(hh); }
+    });
+    return c;
+  })];
 }
 function kpi(label, value, sub) { return h("div", { class: "kpi" }, h("span", null, label), h("b", null, value), sub ? h("span", null, sub) : null); }
 function sbar(label, v, max) {

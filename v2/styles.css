@@ -300,3 +300,25 @@ textarea.code { width: 100%; margin-top: 6px; padding: 10px; border-radius: 10px
 
 .sh-q { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
 .sh-q b { font-size: 1.3rem; }
+
+/* growth test */
+.gchart { display: block; width: 100%; height: auto; margin: 12px 0 2px; }
+.gc-loss { fill: var(--sell); opacity: .07; }
+.gc-even { stroke: var(--faint); stroke-width: 1; stroke-dasharray: 2 3; }
+.gc-ax { stroke: var(--line); stroke-width: 1; }
+.gc-fit { stroke: var(--fg); stroke-width: 1.5; stroke-dasharray: 5 4; opacity: .75; }
+.gc-pt { fill: var(--buy); stroke: var(--panel); stroke-width: 1.5; }
+.gc-pt.loss { fill: var(--sell); }
+.gc-be { fill: none; stroke: var(--trim); stroke-width: 2; }
+.gc-lab { fill: var(--faint); font-size: 10px; }
+.gc-lab.loss { fill: var(--sell); opacity: .8; } .gc-lab.prof { fill: var(--buy); opacity: .8; }
+/* research library */
+.rcard { margin-bottom: 10px; }
+.rcard.tap { cursor: pointer; }
+.rcard .rt { display: block; font-weight: 650; color: var(--fg); text-decoration: none; line-height: 1.3; }
+.rscore { margin: 10px 0 4px; font-size: .85rem; color: var(--muted); }
+.claim { display: grid; grid-template-columns: 22px 1fr; gap: 8px; padding: 9px 0; border-top: 1px solid var(--line2); font-size: .9rem; }
+.claim .note { margin-top: 3px; }
+.cmark { width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; font-style: normal; font-size: .72rem; font-weight: 700; color: var(--bg); margin-top: 1px; }
+.rcard details { margin-top: 8px; border-top: 1px solid var(--line2); padding-top: 8px; }
+.rcard summary { color: var(--muted); font-size: .82rem; cursor: pointer; }
