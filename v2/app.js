@@ -471,7 +471,8 @@ function pieCleanup(pie) {
       kpi("Sell warnings", String(pie.sell_warnings), "slices with 2+ red flags"),
       kpi("Top 2 slices", pie.top2_share_pct + "%", "of the pie's value")),
     h("div", { class: "prog" }, h("i", { style: { width: (todo.length ? n / todo.length * 100 : 100) + "%" } })),
-    h("div", { class: "note" }, todo.length ? `${n} of ${todo.length} cleanup steps done. Tick them off as you go; this phone remembers.` : "Nothing to clean up."));
+    h("div", { class: "note" }, todo.length ? `${n} of ${todo.length} cleanup steps done. Tick them off as you go; this phone remembers.` : "Nothing to clean up."),
+    pie.sold ? h("div", { class: "note" }, `✓ Sold ${dLong(pie.sold.date)}: ${pie.sold.tickers.length} slices (${pie.sold.tickers.join(", ")}), confirmed by the Trading 212 sync.`) : null);
   const groups = [];
   for (const a of ["sell", "sell_score", "yield_trap", "write_off", "review", "trim", "review_keep", "small"]) {
     const items = todo.filter(r => r.action === a);
