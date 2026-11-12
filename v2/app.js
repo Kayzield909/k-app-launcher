@@ -417,6 +417,9 @@ function viewHoldings(v, d) {
     const pie = pies.find(p => p.name === state.pie);
     if (pie) v.append(...pieCleanup(pie));
   }
+  for (const c of (d.cleanup && d.cleanup.closed) || [])
+    v.append(h("div", { class: "note" }, `✓ ${c.name.replace(/\s*-\s*custom$/i, "")} pie closed ${dLong(c.closed)}: ${c.sold.length} sold` +
+      (c.kept_as_holdings.length ? `, ${c.kept_as_holdings.length} kept as single holdings (${c.kept_as_holdings.join(", ")}).` : ".")));
   const search = h("input", { class: "search", type: "search", placeholder: "Search ticker, company, flag", value: state.holdQuery, "aria-label": "Search holdings" });
   v.append(search);
   const L = h("div", { class: "list", style: { "margin-top": "12px" } });
