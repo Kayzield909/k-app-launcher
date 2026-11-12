@@ -456,7 +456,7 @@ function logo(t, big) {
 }
 
 // ---------- Pie cleanup ----------
-const ACT = { sell: ["Sell: red flags", "sell"], sell_score: ["Sell: scorecard wouldn't buy", "sell"], yield_trap: ["Review: yield trap?", "trim"],
+const ACT = { removed: ["Removed: sells at next rebalance", "trim"], sell: ["Sell: red flags", "sell"], sell_score: ["Sell: scorecard wouldn't buy", "sell"], yield_trap: ["Review: yield trap?", "trim"],
   write_off: ["Write off: delisted", "hold"], review: ["Review: couldn't score", "trim"], trim: ["Trim to target", "watch"],
   review_keep: ["Keep: scorecard would buy", "buy"], small: ["Top up or remove", "hold"] };
 function cleanupDone() { try { return JSON.parse(store.get("aatrox-cleanup") || "{}"); } catch (e) { return {}; } }
@@ -477,7 +477,7 @@ function pieCleanup(pie) {
     h("div", { class: "note" }, todo.length ? `${n} of ${todo.length} cleanup steps done. Tick them off as you go; this phone remembers.` : "Nothing to clean up."),
     pie.sold ? h("div", { class: "note" }, `✓ Sold ${dLong(pie.sold.date)}: ${pie.sold.tickers.length} slices (${pie.sold.tickers.join(", ")}), confirmed by the Trading 212 sync.`) : null);
   const groups = [];
-  for (const a of ["sell", "sell_score", "yield_trap", "write_off", "review", "trim", "review_keep", "small"]) {
+  for (const a of ["removed", "sell", "sell_score", "yield_trap", "write_off", "review", "trim", "review_keep", "small"]) {
     const items = todo.filter(r => r.action === a);
     if (!items.length) continue;
     const box = h("div", { class: "card ck" }, h("div", { class: "ckh" }, h("span", { class: "pill g-" + ACT[a][1] }, ACT[a][0]), h("span", { class: "faint" }, `${items.length}`)));
