@@ -254,7 +254,7 @@ function render(animate) {
 // ---------- Signals ----------
 function viewSignals(v, d) {
   const rows = d.scores;
-  const inTheme = r => state.theme === "all" || (state.theme === "held" ? r.held : r.theme === state.theme);
+  const inTheme = r => state.theme === "all" || (state.theme === "held" ? r.held : r.theme === state.theme || r.also_theme === state.theme);
   const themed = rows.filter(inTheme);
   const counts = h("div", { class: "counts" });
   for (const g of GROUP_ORDER) {
@@ -264,7 +264,7 @@ function viewSignals(v, d) {
       h("div", { class: "bar bg-" + g }), h("b", null, n), h("span", null, GROUP_LABEL[g])));
   }
   const chips = h("div", { class: "chips" });
-  for (const [k, label] of [["all", "All"], ["held", "Holdings"], ["Compulsory products", "Compulsory"], ["AI supply chain", "AI supply chain"]])
+  for (const [k, label] of [["all", "All"], ["held", "Holdings"], ["Compulsory products", "Compulsory"], ["AI supply chain", "AI supply chain"], ["Both sides win", "Both sides win"]])
     chips.append(h("button", { class: "chip", "aria-pressed": String(state.theme === k), onclick: () => { state.theme = k; render(false); } }, label));
   const mm = marketMoodCard(d.mood && d.mood.market);
   if (mm) v.append(mm);
@@ -501,8 +501,8 @@ function pieCleanup(pie) {
 
 // ---------- Mood ----------
 const CAT = { management: "Management", legal: "Legal / regulatory", earnings: "Earnings", analyst: "Analyst",
-  competition: "Competition", deals: "Deals", capital: "Capital" };
-const LENS = { management: "Management", legal: "Management", competition: "Moat", deals: "Meaning", earnings: "Numbers", analyst: "Numbers", capital: "Numbers" };
+  competition: "Competition", deals: "Deals", capital: "Capital", trade: "Trade war" };
+const LENS = { management: "Management", legal: "Management", competition: "Moat", trade: "Moat", deals: "Meaning", earnings: "Numbers", analyst: "Numbers", capital: "Numbers" };
 const SUBS = [
   ["wallstreetbets", "Retail euphoria and panic", "Contrarian at extremes only"],
   ["stocks", "Mainstream retail reaction to news", "Medium: is the crowd scared?"],
@@ -544,6 +544,8 @@ function moodSection(r) {
   const notes = state.data.notes && state.data.notes.notes ? state.data.notes.notes[r.ticker] : null;
   const card = h("div", { class: "card" });
   const ev = m.event_3d || [];
+  if (m.trade_week) card.append(h("div", { class: "lens" }, h("b", null, "Rule 1 lens: Moat. "),
+    `${Math.round((m.trade_share || 0) * 100)}% of this week's ${m.news_7d} headlines are about tariffs, export controls or sanctions. Ask whether it changes where the company can sell, or is noise.`));
   if (ev.length) card.append(h("div", { class: "lens" }, h("b", null, "Rule 1 lens: Management. "),
     `${Math.round((m.event_share || 0) * 100)}% of this week's ${m.news_7d} headlines are about ${ev.map(x => CAT[x].toLowerCase()).join(" and ")}. That's one of the four Ms, so check it before acting on the price.`));
   if (notes && notes.text) {
@@ -774,6 +776,7 @@ function kv(pairs) {
 }
 function saUrl(r) {
   const t = r.ticker;
+  if (r.url) return r.url.replace("statistics/", "");
   if (r.ccy === "GBX" || r.ccy === "GBp" || r.ccy === "GBP") return `https://stockanalysis.com/quote/lon/${t}/`;
   if (r.ccy === "EUR") return `https://stockanalysis.com/quote/epa/${t}/`;
   return `https://stockanalysis.com/stocks/${t.toLowerCase()}/`;

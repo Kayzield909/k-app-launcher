@@ -212,7 +212,7 @@ function render(animate) {
 // ---------- Signals ----------
 function viewSignals(v, d) {
   const rows = d.scores;
-  const inTheme = r => state.theme === "all" || (state.theme === "held" ? r.held : r.theme === state.theme);
+  const inTheme = r => state.theme === "all" || (state.theme === "held" ? r.held : r.theme === state.theme || r.also_theme === state.theme);
   const themed = rows.filter(inTheme);
   const counts = h("div", { class: "counts" });
   for (const g of GROUP_ORDER) {
@@ -222,7 +222,7 @@ function viewSignals(v, d) {
       h("div", { class: "bar bg-" + g }), h("b", null, n), h("span", null, GROUP_LABEL[g])));
   }
   const chips = h("div", { class: "chips" });
-  for (const [k, label] of [["all", "All"], ["held", "Holdings"], ["Compulsory products", "Compulsory"], ["AI supply chain", "AI supply chain"]])
+  for (const [k, label] of [["all", "All"], ["held", "Holdings"], ["Compulsory products", "Compulsory"], ["AI supply chain", "AI supply chain"], ["Both sides win", "Both sides win"]])
     chips.append(h("button", { class: "chip", "aria-pressed": String(state.theme === k), onclick: () => { state.theme = k; render(false); } }, label));
   v.append(counts, chips);
 
