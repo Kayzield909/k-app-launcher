@@ -20,7 +20,8 @@ const FILES = {
   cleanup: "output/pie_cleanup.json",
   reviews: "output/review_scores.json",
   unitecon: "output/unit_economics.json",
-  research: "output/research.json"
+  research: "output/research.json",
+  trims: "output/trim_plans.json"
 };
 const LINKS = {
   sync: "https://github.com/Kayzield909/aatrox-capital/actions/workflows/t212-sync.yml",
@@ -141,7 +142,8 @@ async function loadAll(token) {
     cleanup: out.cleanup ? JSON.parse(out.cleanup) : { pies: [] },
     reviews: out.reviews ? JSON.parse(out.reviews) : { scores: {} },
     unitecon: out.unitecon ? JSON.parse(out.unitecon) : {},
-    research: out.research ? JSON.parse(out.research) : { entries: [] }
+    research: out.research ? JSON.parse(out.research) : { entries: [] },
+    trims: out.trims ? JSON.parse(out.trims) : { plans: {} }
   };
 }
 async function refresh(manual) {
@@ -268,6 +270,11 @@ function viewSignals(v, d) {
     chips.append(h("button", { class: "chip", "aria-pressed": String(state.theme === k), onclick: () => { state.theme = k; render(false); } }, label));
   const mm = marketMoodCard(d.mood && d.mood.market);
   if (mm) v.append(mm);
+  const due = Object.values((d.trims && d.trims.plans) || {}).filter(r => r.plan && (r.plan.stage_now === 1 || r.plan.stage_now === 2 || r.plan.stop_hit));
+  if (due.length) v.append(h("div", { class: "card trimdue" }, h("div", { class: "sub" }, "Trims due"),
+    ...due.map(r => h("button", { class: "trow", type: "button", onclick: () => openStock(r.ticker) }, logo(r.ticker),
+      h("b", null, r.ticker), h("span", null, r.plan.stop_hit ? "Stage 3: stop broken, sell the rest" : `Stage ${r.plan.stage_now}: sell ⅓`),
+      h("span", { class: "pill g-" + VB[r.valuation] }, r.valuation)))));
   v.append(counts, chips);
 
   const list = themed.filter(r => !state.sigGroup || GROUP[r.signal] === state.sigGroup)
@@ -819,7 +826,9 @@ function openStock(ticker) {
     sh.append(...section("Valuation", kv([
       ["Trailing P/E", r.pe == null ? "loss" : num(r.pe)], ["Forward P/E", num(r.fwd_pe)], ["EPS growth forecast", r.eps_g3y == null ? null : num(r.eps_g3y) + "%"],
       ["5-yr median P/E", r.hist_pe == null ? "n/a" : num(r.hist_pe)], ["P/E vs history", r.pe_vs_hist == null ? r.pe_hist_signal : `${r.pe_hist_signal} (${num(r.pe_vs_hist, 2)}×)`],
-      ["Earnings trend", r.earnings_trend], ["Sticker basis", r.sticker_basis]])));
+      ["Earnings trend", r.earnings_trend], ["Sticker basis", r.sticker_basis],
+      ["Vs its own history", trimOf(r.ticker) ? valLine(trimOf(r.ticker)) : null]])));
+    sh.append(...trimSection(r.ticker));
     if (r.pe_note) sh.append(h("div", { class: "note" }, "PEG caution: " + r.pe_note));
     const vals = (r.pe_hist_vals || []).filter(v => v > 0);
     if (vals.length >= 2) {
@@ -886,6 +895,34 @@ function openHolding(r) {
     sh.append(h("a", { class: "btn", href: `https://stockanalysis.com/stocks/${r.ticker.toLowerCase()}/statistics/`, target: "_blank", rel: "noopener" }, "Open statistics ↗"));
   });
 }
+// ---------- trim plans: valuation against the stock's own history ----------
+const VB = { "Undervalued": "buy", "Normal": "watch", "Stretched": "trim", "Very stretched": "sell" };
+function trimOf(t) { const p = (state.data.trims || {}).plans || {}; return p[t] || null; }
+function valLine(v) {
+  if (!v || !v.valuation) return null;
+  const parts = [];
+  if (v.trailing_vs_hist != null) parts.push(`trailing P/E ${num(v.trailing_vs_hist, 2)}×`);
+  if (v.forward_vs_hist != null) parts.push(`forward P/E ${num(v.forward_vs_hist, 2)}×`);
+  return `${v.valuation}` + (v.stretch != null ? ` · ${num(v.stretch, 2)}× its usual P/E` : "") + (parts.length ? ` (${parts.join(", ")} its 5-yr median ${num(v.hist_pe)})` : "")
+    + (v.peg != null ? `, PEG ${num(v.peg, 2)}` : "");
+}
+function trimSection(t) {
+  const v = trimOf(t);
+  if (!v || !v.plan) return [];
+  const pl = v.plan, ccy = v.ccy;
+  const steps = [["1", "Sell ⅓", "when Stretched against its own history"], ["2", "Sell ⅓", "Very stretched, or Stretched with RSI 70+"],
+    ["3", "Hold ⅓", pl.stop ? `trailing stop ${money(pl.stop, ccy)}` : "trailing stop"]];
+  const track = h("div", { class: "stages" }, ...steps.map(([n, what, when]) => {
+    const k = Number(n), st = pl.stage_done >= k ? "done" : pl.stage_now === k ? "now" : "next";
+    return h("div", { class: "stage " + st }, h("i", null, st === "done" ? "✓" : n), h("b", null, `Stage ${n} · ${what}`), h("span", null, st === "done" ? "Done" : st === "now" ? "Due now" : when));
+  }));
+  return section("Trim plan", h("div", { class: "card" },
+    h("div", { class: "sh-q" }, h("span", { class: "pill g-" + (VB[v.valuation] || "hold") }, v.valuation || "No valuation"), h("span", { class: "sub" }, pl.start ? `Plan since ${dLong(pl.start)} · ${pl.sold_pct}% sold` : "No plan running")),
+    h("div", { class: "mnote" }, pl.action), track,
+    v.note ? h("div", { class: "note" }, v.note + ".") : null,
+    h("div", { class: "note" }, "Judged against this stock's own 5-year P/E (the mean of trailing and forward) and its PEG, not the sticker price. Stages are read from your Trading 212 sells since the plan started; each is a third of the position at the start. % of position only.")));
+}
+
 // ---------- growth test and research library ----------
 const GV = { "Profitable": "buy", "Scales to profit": "watch", "Doesn't scale": "sell", "Unclear": "hold", "n/a": "hold" };
 const CUR = c => ({ USD: ["$", "¢"], GBP: ["£", "p"], EUR: ["€", "c"] }[c] || ["", "%"]);
