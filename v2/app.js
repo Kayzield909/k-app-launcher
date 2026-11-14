@@ -21,7 +21,9 @@ const FILES = {
   reviews: "output/review_scores.json",
   unitecon: "output/unit_economics.json",
   research: "output/research.json",
-  trims: "output/trim_plans.json"
+  trims: "output/trim_plans.json",
+  journal: "output/journal.json",
+  proof: "output/proof.json"
 };
 const LINKS = {
   sync: "https://github.com/Kayzield909/aatrox-capital/actions/workflows/t212-sync.yml",
@@ -32,7 +34,7 @@ const LINKS = {
   testPush: "https://github.com/Kayzield909/aatrox-capital/actions/workflows/test-push.yml",
   newToken: "https://github.com/settings/personal-access-tokens/new"
 };
-const TABS = { signals: "Signals", swing: "Swing", holdings: "Holdings", alerts: "Alerts", log: "Log" };
+const TABS = { signals: "Signals", swing: "Swing", holdings: "Holdings", proof: "Proof", alerts: "Alerts", log: "Log" };
 
 // ---------- tiny DOM helpers (textContent only: no data ever goes through innerHTML) ----------
 const $ = (s, r = document) => r.querySelector(s);
@@ -143,7 +145,9 @@ async function loadAll(token) {
     reviews: out.reviews ? JSON.parse(out.reviews) : { scores: {} },
     unitecon: out.unitecon ? JSON.parse(out.unitecon) : {},
     research: out.research ? JSON.parse(out.research) : { entries: [] },
-    trims: out.trims ? JSON.parse(out.trims) : { plans: {} }
+    trims: out.trims ? JSON.parse(out.trims) : { plans: {} },
+    journal: out.journal ? JSON.parse(out.journal) : null,
+    proof: out.proof ? JSON.parse(out.proof) : null
   };
 }
 async function refresh(manual) {
@@ -247,7 +251,7 @@ function render(animate) {
   $("#asof").textContent = "";
   if (asof) $("#asof").append("Run " + dShort(asof), h("br"), h("span", { class: "faint" }, "Synced " + fmtFetched()));
   if (!d) { for (let i = 0; i < 6; i++) v.append(h("div", { class: "skel" })); return; }
-  ({ signals: viewSignals, swing: viewSwing, holdings: viewHoldings, alerts: viewAlerts, log: viewLog })[state.tab](v, d);
+  ({ signals: viewSignals, swing: viewSwing, holdings: viewHoldings, proof: viewProof, alerts: viewAlerts, log: viewLog })[state.tab](v, d);
   const n = unreadCount(), badge = $("#alert-badge");
   if (badge) { badge.textContent = n > 9 ? "9+" : String(n); badge.classList.toggle("hidden", !n); }
   if (animate) { v.classList.remove("view-enter"); void v.offsetWidth; v.classList.add("view-enter"); }
@@ -586,6 +590,99 @@ function moodSection(r) {
 function subredditCard() {
   return h("div", { class: "card links" }, ...SUBS.map(([s, what, q]) => h("a", { href: `https://www.reddit.com/r/${s}/`, target: "_blank", rel: "noopener" },
     h("span", { class: "sr" }, h("b", null, "r/" + s), h("small", null, `${what} · ${q}`)), h("span", null, "↗"))));
+}
+
+// ---------- Proof: your record and which signals have earned trust ----------
+const sgn = (v, d = 1) => v == null ? "n/a" : (v > 0 ? "+" : "") + Number(v).toFixed(d) + "%";
+function habitRow(b) {
+  const x = b.median_vs_spx12, w = x == null ? 0 : Math.min(50, Math.abs(x) / 40 * 50);
+  return h("div", { class: "hab" }, h("span", null, b.bucket),
+    h("b", { class: x == null ? "faint" : x >= 0 ? "up" : "down" }, x == null ? "n/a" : sgn(x) + " vs S&P"),
+    h("div", { class: "hb" }, h("i", { class: x >= 0 ? "bg-buy" : "bg-sell", style: { left: (x >= 0 ? 50 : 50 - w) + "%", width: w + "%" } })),
+    h("small", null, `${b.n12} buys with 12 months since · median ${sgn(b.median_ret12)} · beat the S&P ${b.beat_spx12_pct ?? "n/a"}% of the time`));
+}
+function takeaways(j, p) {
+  const out = [];
+  const all = Object.values(j.habits || {}).flat().filter(b => b.n12 >= 8 && b.median_vs_spx12 != null);
+  if (all.length) {
+    const best = all.reduce((a, b) => b.median_vs_spx12 > a.median_vs_spx12 ? b : a), worst = all.reduce((a, b) => b.median_vs_spx12 < a.median_vs_spx12 ? b : a);
+    out.push(`Your worst habit: buying "${worst.bucket}". Those buys trailed the S&P 500 by ${Math.abs(worst.median_vs_spx12).toFixed(0)}% over the next year (median of ${worst.n12}).`);
+    out.push(`Your best: "${best.bucket}", ${sgn(best.median_vs_spx12, 0)} vs the S&P over 12 months (${best.n12} buys).`);
+  }
+  const sl = j.selling || {};
+  if (sl.n) out.push(`After you sold, the stock rose a further ${sgn(sl.median_after12, 0)} over the next year (median of ${sl.n} sells); ${sl.rose_20_pct}% went up another 20%+. You tend to sell winners early.`);
+  const c = j.closed_own;
+  if (c && c.median_days_winners != null && c.median_days_losers != null) out.push(c.median_days_losers > c.median_days_winners * 1.5
+    ? `You sold winners after a median ${c.median_days_winners} days but held losers for ${c.median_days_losers}. That's why ${c.win_rate}% winners still only made ${c.profit_factor}× what the losers cost. The trim plan's thirds and stops are built to flip that.`
+    : `Own picks: ${c.win_rate}% of closed trades made money; winners held ${c.median_days_winners} days, losers ${c.median_days_losers}.`);
+  const b = p && p.backtest;
+  if (b && b.monthly_stop && b.avg_r != null) out.push(`Swing rule backtest: stops checked on daily closes lost ${b.avg_r}R a trade; on month-end closes (the engine's own timeframe) it made ${b.monthly_stop.avg_r > 0 ? "+" : ""}${b.monthly_stop.avg_r}R.`);
+  return out;
+}
+function viewProof(v, d) {
+  const j = d.journal, p = d.proof;
+  if (!j && !p) { v.append(h("div", { class: "card sub" }, "The trade journal and signal scorecard arrive with the next weekly run.")); return; }
+  if (j) {
+    const tk = takeaways(j, p);
+    if (tk.length) v.append(h("div", { class: "h2" }, "What the record says"), h("div", { class: "card" }, ...tk.map(t => h("div", { class: "take" }, t))));
+    const o = j.orders, c = j.closed_own, pc = j.closed_pie;
+    v.append(h("div", { class: "h2" }, "Your trades"), h("div", { class: "card" },
+      h("div", { class: "sub" }, `${o.total.toLocaleString("en-GB")} orders, ${dLong(o.first)} to ${dLong(o.last)}: ${o.own_buys} buys you picked, ${o.pie_buys.toLocaleString("en-GB")} pie buys (auto-invest days with 10+ orders).`),
+      c ? h("div", { class: "kpis" },
+        kpi("Own picks: winners", `${c.win_rate}%`, `${c.n} closed trades`),
+        kpi("Median result", sgn(c.median_ret), `win ${sgn(c.median_win)} · loss ${sgn(c.median_loss)}`),
+        kpi("Gains ÷ losses", c.profit_factor == null ? "n/a" : c.profit_factor + "×", "money made per £1 lost"),
+        kpi("Median hold", `${c.median_days} days`, `winners ${c.median_days_winners} · losers ${c.median_days_losers}`)) : null,
+      pc ? h("div", { class: "note" }, `Pie sells, for comparison: ${pc.n} closed, ${pc.win_rate}% winners, median ${sgn(pc.median_ret)}, held a median ${pc.median_days} days. That's mostly the Ark pie.`) : null));
+    v.append(h("div", { class: "h2" }, "Entry habits: 12 months after you bought"));
+    const hc = h("div", { class: "card" }, h("div", { class: "sub" }, `${j.habit_n} of your own buys had the price history to grade. You followed the swing rule on ${j.rule_followed_pct}% of them.`));
+    const label = { rule: "Swing rule", trend200: "Trend", high52: "Distance from the 52-week high", rsi: "Momentum (RSI)" };
+    for (const k of ["rule", "trend200", "high52", "rsi"]) {
+      const bs = (j.habits[k] || []).slice().sort((a, b) => (b.median_vs_spx12 ?? -999) - (a.median_vs_spx12 ?? -999));
+      if (!bs.length) continue;
+      hc.append(h("div", { class: "faint", style: { "margin-top": "12px", "font-size": ".76rem", "text-transform": "uppercase", "letter-spacing": ".06em" } }, label[k]), ...bs.map(habitRow));
+    }
+    hc.append(h("div", { class: "note" }, "Small groups (under about 10 buys) can swing a lot; read them as hints."));
+    v.append(hc);
+    const sl = j.selling;
+    if (sl && sl.n) v.append(h("div", { class: "h2" }, "After you sold"), h("div", { class: "card" },
+      h("div", { class: "kpis" },
+        kpi("Next 12 months", sgn(sl.median_after12), `median of ${sl.n} sells`),
+        kpi("Vs the S&P", sgn(sl.median_vs_spx12), "same 12 months"),
+        kpi("Rose 20%+ after", `${sl.rose_20_pct}%`, "sold too early"),
+        kpi("Fell 20%+ after", `${sl.fell_20_pct}%`, "good exits")),
+      h("div", { class: "note" }, "Biggest misses: " + sl.biggest_misses.map(a => `${a.ticker} ${sgn(a.after12, 0)} (sold ${dShort(a.date)} ${a.date.slice(0, 4)})`).join(", ") + "."),
+      h("div", { class: "note" }, "Best exits: " + sl.best_exits.map(a => `${a.ticker} ${sgn(a.after12, 0)}`).join(", ") + ".")));
+    const tl = (rows) => h("div", { class: "tlist" }, ...rows.flatMap(t => [logo(t.ticker), h("span", null, `${t.ticker} · ${t.buy_kind === "pie" ? "pie" : "own pick"}`),
+      h("span", { class: "num faint" }, `${t.days}d`), h("b", { class: "num " + (t.ret >= 0 ? "up" : "down") }, sgn(t.ret, 0))]));
+    v.append(h("div", { class: "h2" }, "Best and worst closed trades"), h("div", { class: "card" }, tl(j.best), h("div", { style: { height: "14px" } }), tl(j.worst)));
+  }
+  if (p) {
+    const b = p.backtest;
+    if (b) {
+      const row = (lbl, a) => h("div", { class: "hab" }, h("span", null, lbl), h("b", { class: (a.m6.median_vs_spx ?? 0) >= 0 ? "up" : "down" }, sgn(a.m6.median_vs_spx) + " · 6m"),
+        h("small", null, `${a.n} signals · 3m ${sgn(a.m3.median_vs_spx)} · 12m ${sgn(a.m12.median_vs_spx)} vs S&P · beat it ${a.m6.beat_pct ?? "n/a"}% at 6m`));
+      v.append(h("div", { class: "h2" }, "Swing rule backtest since 2020"), h("div", { class: "card" },
+        h("div", { class: "sub" }, `The swing engine replayed at every month-end on today's ${b.stocks} watchlist stocks (${b.month_ends.toLocaleString("en-GB")} month-ends). The rule fired ${b.signals} times.`),
+        row("Enter (support held, closed higher)", b.enter), row("Ready (at support)", b.ready), row("Every month-end (baseline)", b.baseline),
+        h("div", { class: "kpis" },
+          kpi("Stop on daily closes", `${b.avg_r > 0 ? "+" : ""}${b.avg_r}R`, `${b.win_pct}% winners · ${b.outcomes.stop} stopped of ${b.closed}`),
+          kpi("Stop on month-end closes", `${b.monthly_stop.avg_r > 0 ? "+" : ""}${b.monthly_stop.avg_r}R`, `${b.monthly_stop.win_pct}% winners · ${b.monthly_stop.outcomes.stop} stopped of ${b.monthly_stop.closed}`)),
+        h("div", { class: "note" }, "R is the result per trade in units of the risk taken (1R = the distance to the stop). Price-only: past fundamentals weren't stored, so the quality gate isn't in the test. Today's watchlist was chosen with hindsight, so all returns look better than they would have; compare the rule with the baseline, not with zero.")));
+    }
+    const L = p.live;
+    if (L) {
+      const lab = { signals: "Signal", swing: "Swing", valuation: "Valuation" };
+      const gs = L.groups.filter(g => g.value !== "NO TRADE");
+      v.append(h("div", { class: "h2" }, "Live signal record"), h("div", { class: "card" },
+        h("div", { class: "sub" }, `Every signal change since ${dLong(L.since)}, priced on the day it appeared and scored against the S&P 500 as time passes.`),
+        ...gs.map(g => h("div", { class: "hab" }, h("span", null, `${lab[g.kind]}: ${g.kind === "signals" ? SIG_LABEL(g.value) : g.value}`),
+          h("b", { class: g.m1.n ? ((g.m1.median_vs_spx ?? 0) >= 0 ? "up" : "down") : "faint" }, g.m1.n ? sgn(g.m1.median_vs_spx) + " · 1m" : `${g.n} waiting`),
+          h("small", null, g.m1.n ? `${g.n} entries · 3m ${sgn(g.m3.median_vs_spx)} · 6m ${sgn(g.m6.median_vs_spx)} · 12m ${sgn(g.m12.median_vs_spx)} vs S&P` : `${g.n} entries; first 1-month results about a month after each`))),
+        h("div", { class: "note" }, "This is the test that counts: no hindsight, real signals as they fired. It fills in over the next year.")));
+    }
+  }
+  v.append(h("p", { class: "note", style: { "text-align": "center", "margin-top": "18px" } }, "Percentages and counts only. Returns in each stock's own currency, before FX and fees."));
 }
 
 // ---------- Alerts ----------
