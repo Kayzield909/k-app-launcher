@@ -22,6 +22,7 @@ const FILES = {
   unitecon: "output/unit_economics.json",
   research: "output/research.json",
   trims: "output/trim_plans.json",
+  trimtest: "output/trim_test.json",
   journal: "output/journal.json",
   proof: "output/proof.json"
 };
@@ -147,7 +148,8 @@ async function loadAll(token) {
     research: out.research ? JSON.parse(out.research) : { entries: [] },
     trims: out.trims ? JSON.parse(out.trims) : { plans: {} },
     journal: out.journal ? JSON.parse(out.journal) : null,
-    proof: out.proof ? JSON.parse(out.proof) : null
+    proof: out.proof ? JSON.parse(out.proof) : null,
+    trimtest: out.trimtest ? JSON.parse(out.trimtest) : null
   };
 }
 async function refresh(manual) {
@@ -277,7 +279,7 @@ function viewSignals(v, d) {
   const due = Object.values((d.trims && d.trims.plans) || {}).filter(r => r.plan && (r.plan.stage_now === 1 || r.plan.stage_now === 2 || r.plan.stop_hit));
   if (due.length) v.append(h("div", { class: "card trimdue" }, h("div", { class: "sub" }, "Trims due"),
     ...due.map(r => h("button", { class: "trow", type: "button", onclick: () => openStock(r.ticker) }, logo(r.ticker),
-      h("b", null, r.ticker), h("span", null, r.plan.stop_hit ? "Stage 3: stop broken, sell the rest" : `Stage ${r.plan.stage_now}: sell ⅓`),
+      h("b", null, r.ticker), h("span", null, r.plan.stop_hit ? "Core third: sell warning" : `Stage ${r.plan.stage_now}: sell ⅓`),
       h("span", { class: "pill g-" + VB[r.valuation] }, r.valuation)))));
   v.append(counts, chips);
 
@@ -367,7 +369,7 @@ function viewSwing(v, d) {
   for (const r of rows.slice().sort((a, b) => SETUP_ORDER.indexOf(a.setup) - SETUP_ORDER.indexOf(b.setup) || (a.dist_support_pct ?? 999) - (b.dist_support_pct ?? 999))) {
     L.append(h("button", { class: "row", onclick: () => openStock(r.ticker) },
       h("div", { class: "l1" }, logo(r.ticker), h("span", { class: "tk" }, r.ticker), h("span", { class: "nm" }, r.name),
-        h("span", { class: "pill " + (r.swing === "ENTER" ? "g-buy" : r.swing === "READY" ? "g-watch" : "g-hold") }, r.swing === "NO TRADE" ? "No trade" : r.swing)),
+        h("span", { class: "pill " + (r.swing === "ENTER" ? "g-buy" : r.swing === "READY" ? "g-watch" : "g-hold") }, swingLabel(r.swing))),
       h("div", { class: "l2" }, h("span", null, h("b", null, setupLabel(r.setup))),
         r.support != null ? h("span", null, "support ", h("b", null, money(r.support, r.ccy)), r.support_touches ? ` ×${r.support_touches}` : "") : null,
         r.rr != null ? h("span", null, "R:R ", h("b", null, num(r.rr, 1))) : null),
@@ -594,12 +596,12 @@ function subredditCard() {
 
 // ---------- Proof: your record and which signals have earned trust ----------
 const sgn = (v, d = 1) => v == null ? "n/a" : (v > 0 ? "+" : "") + Number(v).toFixed(d) + "%";
-function habitRow(b) {
+function habitRow(b, small) {
   const x = b.median_vs_spx12, w = x == null ? 0 : Math.min(50, Math.abs(x) / 40 * 50);
   return h("div", { class: "hab" }, h("span", null, b.bucket),
     h("b", { class: x == null ? "faint" : x >= 0 ? "up" : "down" }, x == null ? "n/a" : sgn(x) + " vs S&P"),
     h("div", { class: "hb" }, h("i", { class: x >= 0 ? "bg-buy" : "bg-sell", style: { left: (x >= 0 ? 50 : 50 - w) + "%", width: w + "%" } })),
-    h("small", null, `${b.n12} buys with 12 months since · median ${sgn(b.median_ret12)} · beat the S&P ${b.beat_spx12_pct ?? "n/a"}% of the time`));
+    h("small", null, small || `${b.n12} buys with 12 months since · median ${sgn(b.median_ret12)} · beat the S&P ${b.beat_spx12_pct ?? "n/a"}% of the time`));
 }
 function takeaways(j, p) {
   const out = [];
@@ -616,7 +618,7 @@ function takeaways(j, p) {
     ? `You sold winners after a median ${c.median_days_winners} days but held losers for ${c.median_days_losers}. That's why ${c.win_rate}% winners still only made ${c.profit_factor}× what the losers cost. The trim plan's thirds and stops are built to flip that.`
     : `Own picks: ${c.win_rate}% of closed trades made money; winners held ${c.median_days_winners} days, losers ${c.median_days_losers}.`);
   const b = p && p.backtest;
-  if (b && b.monthly_stop && b.avg_r != null) out.push(`Swing rule backtest: stops checked on daily closes lost ${b.avg_r}R a trade; on month-end closes (the engine's own timeframe) it made ${b.monthly_stop.avg_r > 0 ? "+" : ""}${b.monthly_stop.avg_r}R.`);
+  if (b && b.monthly_stop && b.avg_r != null) out.push(`Swing rule backtest: stops on daily closes lost ${b.avg_r}R a trade; judged at month-end with a daily disaster stop (the rule since 15 Nov) it made ${b.monthly_stop.avg_r > 0 ? "+" : ""}${b.monthly_stop.avg_r}R. It only works on quality stocks: on your other traded names the rule lost money with any stop.`);
   return out;
 }
 function viewProof(v, d) {
@@ -667,8 +669,21 @@ function viewProof(v, d) {
         row("Enter (support held, closed higher)", b.enter), row("Ready (at support)", b.ready), row("Every month-end (baseline)", b.baseline),
         h("div", { class: "kpis" },
           kpi("Stop on daily closes", `${b.avg_r > 0 ? "+" : ""}${b.avg_r}R`, `${b.win_pct}% winners · ${b.outcomes.stop} stopped of ${b.closed}`),
-          kpi("Stop on month-end closes", `${b.monthly_stop.avg_r > 0 ? "+" : ""}${b.monthly_stop.avg_r}R`, `${b.monthly_stop.win_pct}% winners · ${b.monthly_stop.outcomes.stop} stopped of ${b.monthly_stop.closed}`)),
+          kpi("Month-end + disaster stop (the rule now)", `${b.monthly_stop.avg_r > 0 ? "+" : ""}${b.monthly_stop.avg_r}R`, `${b.monthly_stop.win_pct}% winners · ${b.monthly_stop.outcomes.stop} stopped of ${b.monthly_stop.closed}`)),
         h("div", { class: "note" }, "R is the result per trade in units of the risk taken (1R = the distance to the stop). Price-only: past fundamentals weren't stored, so the quality gate isn't in the test. Today's watchlist was chosen with hindsight, so all returns look better than they would have; compare the rule with the baseline, not with zero.")));
+    }
+    const tt = d.trimtest;
+    if (tt && tt.signal) {
+      const order = ["Undervalued", "Normal", "Stretched", "Very stretched"];
+      const P = tt.plans;
+      v.append(h("div", { class: "h2" }, "Trim plan backtest"), h("div", { class: "card" },
+        h("div", { class: "sub" }, `Valuation against each stock's own P/E history, replayed monthly ${dShort(tt.window[0])} ${tt.window[0].slice(0, 4)} to ${dShort(tt.window[1])} ${tt.window[1].slice(0, 4)} with only what was known at the time. What came next:`),
+        ...order.map(k => habitRow({ bucket: k, median_vs_spx12: tt.signal[k].median_vs_spx12 },
+          `${tt.signal[k].n12} stock-months with 12 months since · beat the S&P ${tt.signal[k].beat12_pct ?? "n/a"}% of the time · 6m ${sgn(tt.signal[k].median_vs_spx6)}`)),
+        h("div", { class: "kpis" },
+          kpi("Plan beat holding", `${P.plan_beat_hold} of ${P.trimmed}`, "stocks it trimmed"),
+          kpi("Median difference", (P.median_diff_pts > 0 ? "+" : "") + Math.round(P.median_diff_pts) + " pts", "plan minus hold, to today")),
+        h("div", { class: "note" }, "Proceeds from each third went into the S&P 500. The last third is kept as a core holding: a price stop on it made the worst case worse (Taiwan Semi 2025). Short window, mostly a rising market: a first read, re-run every Friday.")));
     }
     const L = p.live;
     if (L) {
@@ -940,17 +955,19 @@ function openStock(ticker) {
       ["200-day average", r.ma200 == null ? null : money(r.ma200, r.ccy)],
       ["Price vs 200-day", r.ma200 ? pct((r.price / r.ma200 - 1) * 100) : null],
       ["50-day vs 200-day", r.ma50 && r.ma200 ? (r.ma50 > r.ma200 ? "Above (uptrend)" : "Below (downtrend)") : null],
-      ["RSI (14-day)", rsiTxt]])));
+      ["RSI (14-day)", rsiTxt],
+      ["Dip rule", r.ma200 && r.price < r.ma200 ? (r.quality >= 25 ? `Below its 200-day average: quality ${r.quality}/40 passes, a dip you can buy` : `Below its 200-day average: quality ${r.quality}/40 is under 25, so don't buy this dip`) : null]])));
     sh.append(...section("Quality", kv([
       ["ROIC", r.roic == null ? null : num(r.roic) + "%"], ["FCF margin", r.fcf_margin == null ? null : num(r.fcf_margin) + "%"],
       ["Debt ÷ FCF", r.debt_fcf == null ? "n/a" : num(r.debt_fcf) + " yrs"], ["Piotroski", r.piotroski == null ? null : r.piotroski + "/9"],
       ["Gross margin", r.gross_margin == null ? null : num(r.gross_margin) + "%"], ["Need", r.need]])));
     sh.append(...growthSection("watchlist", r.ticker), ...researchSection("watchlist", r.ticker));
     if (w) sh.append(...section("Swing setup", kv([
-      ["Verdict", w.swing === "NO TRADE" ? "No trade" : w.swing], ["Setup", setupLabel(w.setup)], ["Trend", w.trend],
+      ["Verdict", swingLabel(w.swing)], ["Setup", setupLabel(w.setup)], ["Trend", w.trend],
       ["Support", w.support == null ? null : `${money(w.support, w.ccy)}${w.support_touches ? " · " + w.support_touches + " touches" : ""}`],
       ["Buy zone up to", w.buy_zone_top == null ? null : money(w.buy_zone_top, w.ccy)],
-      ["Stop", w.stop == null ? null : `${money(w.stop, w.ccy)} (−${num(w.risk_pct)}%)`],
+      ["Stop (month-end close)", w.stop == null ? null : `${money(w.stop, w.ccy)} (−${num(w.risk_pct)}%)`],
+      ["Disaster stop (any daily close)", w.disaster_stop == null ? null : money(w.disaster_stop, w.ccy)],
       ["Target", w.target == null ? null : `${money(w.target, w.ccy)} (+${num(w.reward_pct)}%)`],
       ["Reward ÷ risk", w.rr == null ? null : num(w.rr, 1)]])),
       w.swing_reason ? h("div", { class: "note" }, w.swing_reason) : null);
@@ -1008,7 +1025,7 @@ function trimSection(t) {
   if (!v || !v.plan) return [];
   const pl = v.plan, ccy = v.ccy;
   const steps = [["1", "Sell ⅓", "when Stretched against its own history"], ["2", "Sell ⅓", "Very stretched, or Stretched with RSI 70+"],
-    ["3", "Hold ⅓", pl.stop ? `trailing stop ${money(pl.stop, ccy)}` : "trailing stop"]];
+    ["3", "Keep ⅓ as core", "sold only on a sell warning, not on price"]];
   const track = h("div", { class: "stages" }, ...steps.map(([n, what, when]) => {
     const k = Number(n), st = pl.stage_done >= k ? "done" : pl.stage_now === k ? "now" : "next";
     return h("div", { class: "stage " + st }, h("i", null, st === "done" ? "✓" : n), h("b", null, `Stage ${n} · ${what}`), h("span", null, st === "done" ? "Done" : st === "now" ? "Due now" : when));
@@ -1017,7 +1034,7 @@ function trimSection(t) {
     h("div", { class: "sh-q" }, h("span", { class: "pill g-" + (VB[v.valuation] || "hold") }, v.valuation || "No valuation"), h("span", { class: "sub" }, pl.start ? `Plan since ${dLong(pl.start)} · ${pl.sold_pct}% sold` : "No plan running")),
     h("div", { class: "mnote" }, pl.action), track,
     v.note ? h("div", { class: "note" }, v.note + ".") : null,
-    h("div", { class: "note" }, "Judged against this stock's own 5-year P/E (the mean of trailing and forward) and its PEG, not the sticker price. Stages are read from your Trading 212 sells since the plan started; each is a third of the position at the start. % of position only.")));
+    h("div", { class: "note" }, "Judged against this stock's own 5-year P/E (the mean of trailing and forward) and its PEG, not the sticker price. Stages are read from your Trading 212 sells since the plan started; each is a third of the position at the start. Backtested 2024–26 on the watchlist: the plan beat holding in 14 of 19 trimmed stocks. % of position only.")));
 }
 
 // ---------- growth test and research library ----------
@@ -1122,6 +1139,7 @@ function researchLibrary(d) {
     return c;
   })];
 }
+function swingLabel(v) { return { "NO TRADE": "No trade", "ENTER": "Enter", "READY": "Ready", "COUNTER-TREND": "Counter-trend (test)" }[v] || v; }
 function kpi(label, value, sub) { return h("div", { class: "kpi" }, h("span", null, label), h("b", null, value), sub ? h("span", null, sub) : null); }
 function sbar(label, v, max) {
   return h("div", { class: "sbar" }, h("span", null, label), h("i", { style: { "--w": Math.max(0, Math.min(100, v / max * 100)) + "%" } }), h("b", null, `${num(v, v % 1 ? 1 : 0)}/${max}`));
