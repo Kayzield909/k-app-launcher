@@ -1106,13 +1106,15 @@ function growthSection(group, t) {
     u.source ? h("a", { href: u.source, target: "_blank", rel: "noopener" }, "Quarterly results ↗") : null));
   return section("Does growth fix it?", card);
 }
-const CL = { holds: ["✓", "buy", "Still holds"], broken: ["✗", "sell", "Broken"], unchecked: ["?", "hold", "Not testable yet"] };
+const CL = { holds: ["✓", "buy", "Still holds"], broken: ["✗", "sell", "Broken"], unchecked: ["?", "hold", "Not testable yet"],
+  watch: ["⏳", "hold", "Watching"], overdue: ["!", "trim", "Deadline passed"] };
 function researchCard(e, withTicker) {
   const since = c => !c.since ? "" : c.first_check ? ` · first checked ${dLong(c.since)}` : /^\d{4}-\d{2}-\d{2}$/.test(c.since) ? ` · since ${dLong(c.since)}` : ` · since ${c.since}`;
   return h("div", { class: "card rcard" },
     h("a", { class: "rt", href: e.url, target: "_blank", rel: "noopener" }, withTicker ? e.ticker + " · " : "", e.title, " ↗"),
     h("div", { class: "faint" }, `${e.source} · ${dLong(e.date)} · ${e.stance}` + (e.data_to ? ` · data to ${dLong(e.data_to)}` : "")),
-    h("div", { class: "rscore" }, h("b", { class: e.broken ? "g-trim" : "g-buy" }, `${e.holds} of ${e.claims.length} claims still hold`), " against today's numbers"),
+    h("div", { class: "rscore" }, h("b", { class: e.broken ? "g-trim" : "g-buy" }, `${e.holds} of ${e.holds + e.broken} testable claims still hold`), " against today's numbers",
+      e.claims.length > e.holds + e.broken ? ` · ${e.claims.length - e.holds - e.broken} dated promises to watch` : ""),
     ...e.claims.map(c => h("div", { class: "claim" },
       h("i", { class: "cmark bg-" + CL[c.status][1] }, CL[c.status][0]),
       h("div", null, h("div", null, c.text), h("div", { class: "note" }, `${CL[c.status][2]}${since(c)}. ${c.detail || ""}`)))),
