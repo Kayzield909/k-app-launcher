@@ -23,6 +23,7 @@ const FILES = {
   research: "output/research.json",
   trims: "output/trim_plans.json",
   trimtest: "output/trim_test.json",
+  levels: "output/market_levels.json",
   journal: "output/journal.json",
   proof: "output/proof.json"
 };
@@ -149,7 +150,8 @@ async function loadAll(token) {
     trims: out.trims ? JSON.parse(out.trims) : { plans: {} },
     journal: out.journal ? JSON.parse(out.journal) : null,
     proof: out.proof ? JSON.parse(out.proof) : null,
-    trimtest: out.trimtest ? JSON.parse(out.trimtest) : null
+    trimtest: out.trimtest ? JSON.parse(out.trimtest) : null,
+    levels: out.levels ? JSON.parse(out.levels) : null
   };
 }
 async function refresh(manual) {
@@ -276,6 +278,13 @@ function viewSignals(v, d) {
     chips.append(h("button", { class: "chip", "aria-pressed": String(state.theme === k), onclick: () => { state.theme = k; render(false); } }, label));
   const mm = marketMoodCard(d.mood && d.mood.market);
   if (mm) v.append(mm);
+  const ix = d.levels && d.levels.indexes;
+  if (ix && Object.values(ix).some(x => x.drawdown_pct <= -5)) v.append(h("div", { class: "card" },
+    h("div", { class: "sub" }, "Correction plan · a third of spare cash at each S&P step"),
+    ...Object.values(ix).map(x => h("div", { class: "hab" }, h("span", null, x.name),
+      h("b", { class: x.drawdown_pct <= -10 ? "down" : "faint" }, `${x.drawdown_pct}% from high`),
+      h("small", null, x.levels.map(l => `${l.pct}% at ${Math.round(l.level).toLocaleString("en-GB")}` + (x.close <= l.level ? " ✓" : "")).join(" · ")))),
+    h("div", { class: "note" }, "You get an alert with the buy list at each step. Quality 35+ first; nothing under 25.")));
   const due = Object.values((d.trims && d.trims.plans) || {}).filter(r => r.plan && (r.plan.stage_now === 1 || r.plan.stage_now === 2 || r.plan.stop_hit));
   if (due.length) v.append(h("div", { class: "card trimdue" }, h("div", { class: "sub" }, "Trims due"),
     ...due.map(r => h("button", { class: "trow", type: "button", onclick: () => openStock(r.ticker) }, logo(r.ticker),
