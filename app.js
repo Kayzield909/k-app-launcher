@@ -365,7 +365,8 @@ function viewHoldings(v, d) {
   const draw = () => {
     L.textContent = "";
     const q = state.holdQuery.toLowerCase();
-    const list = rows.filter(r => state.holdFilter === "all" ? true : state.holdFilter === "flagged" ? (r.scan === "SELL WARNING" || r.scan === "ONE FLAG") : r.scan === state.holdFilter)
+    // a search looks across every holding; the status and pie filters only apply when the box is empty
+    const list = rows.filter(r => q || state.holdFilter === "all" ? true : state.holdFilter === "flagged" ? (r.scan === "SELL WARNING" || r.scan === "ONE FLAG") : r.scan === state.holdFilter)
       .filter(r => !q || [r.ticker, r.name, r.flags, r.sector].join(" ").toLowerCase().includes(q))
       .sort((a, b) => order[a.scan] - order[b.scan] || (b.n_flags || 0) - (a.n_flags || 0) || a.ticker.localeCompare(b.ticker));
     if (!list.length) L.append(h("div", { class: "empty" }, "No holdings match."));
@@ -580,7 +581,16 @@ document.addEventListener("DOMContentLoaded", () => {
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible" && state.token && (!state.fetchedAt || Date.now() - new Date(state.fetchedAt) > 10 * 60_000)) refresh();
   });
-  let rt; window.addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(() => state.data && !$("#app").classList.contains("hidden") && render(false), 200); });
+  // Redraw on a real width change (rotation) only. The on-screen keyboard changes the height, and redrawing then
+  // replaced the focused search box, which closed the keyboard straight away.
+  let rt, lastW = window.innerWidth;
+  window.addEventListener("resize", () => {
+    if (window.innerWidth === lastW) return;
+    const el = document.activeElement;
+    if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA")) return;
+    lastW = window.innerWidth;
+    clearTimeout(rt); rt = setTimeout(() => state.data && !$("#app").classList.contains("hidden") && render(false), 200);
+  });
   setupPullToRefresh();
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
 
