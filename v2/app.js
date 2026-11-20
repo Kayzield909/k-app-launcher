@@ -1000,6 +1000,7 @@ function openHolding(r) {
         kpi("Sticker", q.sticker == null ? "n/a" : money(q.sticker, "USD"), "buy below " + (q.mos == null ? "n/a" : money(q.mos, "USD"))),
         kpi("PEG", q.peg == null ? "n/a" : `${num(q.peg, 2)} · ${q.pe_signal}`)),
       h("div", { class: "note" }, q.why + ". " + (q.sticker_basis ? "Sticker: " + q.sticker_basis + "." : "")),
+      q.kind === "bank" ? h("div", { class: "note" }, "Bank, insurer, REIT or utility: quality is scored on return on equity, because debt and property or grid spending make free cash flow, debt ÷ FCF and Altman Z misleading for these.") : null,
       h("div", { class: "note" }, "Scored with the same Rule 1 maths as the watchlist, from this week's stockanalysis data. One-off profits can flatten the picture; without a 5-year P/E history the sticker uses a P/E cap of 20."))));
     const flags = (r.flags || "").split("; ").filter(Boolean);
     sh.append(...section("Red flags", h("div", { class: "card" },
