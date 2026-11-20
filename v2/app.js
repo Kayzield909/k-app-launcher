@@ -451,8 +451,10 @@ function viewHoldings(v, d) {
         h("div", { class: "l1" }, logo(r.ticker), h("span", { class: "tk" }, r.ticker), h("span", { class: "nm" }, r.name || ""),
           h("span", { class: "pill g-" + SCAN_GROUP[r.scan] }, SCAN_LABEL[r.scan])),
         h("div", { class: "l2" }, r.sector ? h("span", null, r.sector) : null, r.first_buy ? h("span", null, "since " + dShort(r.first_buy) + " " + r.first_buy.slice(0, 4)) : null,
-          r.vs_cost_pct != null ? h("span", { class: r.vs_cost_pct >= 0 ? "up" : "down" }, pct(r.vs_cost_pct) + " vs cost") : null,
-          r.scan === "WATCHLIST" ? h("span", null, r.checks.replace("full scorer: ", "")) : null),
+          r.vs_cost_pct != null ? h("span", { class: r.vs_cost_pct >= 0 ? "up" : "down" }, pct(r.vs_cost_pct) + " vs cost") : r.cost_note ? h("span", null, "spin-off, no cost") : null,
+          r.scan === "WATCHLIST" ? h("span", null, r.checks.replace("full scorer: ", "")) : null,
+          (() => { const q = (d.reviews && d.reviews.scores || {})[r.ticker]; return q && !q.error && r.scan !== "WATCHLIST" ? h("span", { class: "g-" + (GROUP[q.signal] || "hold") }, "Scorecard: " + SIG_LABEL(q.signal)) : null; })(),
+          (() => { const u = ((d.unitecon || {}).holdings || {})[r.ticker]; return u && u.verdict && u.verdict !== "Profitable" && r.scan !== "WATCHLIST" ? h("span", null, "Growth: " + u.verdict) : null; })()),
         r.flags ? h("div", { class: "flags" }, r.flags) : null));
     }
   };
@@ -1004,7 +1006,7 @@ function openHolding(r) {
       flags.length ? h("ul", { style: { margin: "0", "padding-left": "18px" } }, flags.map(f => h("li", { class: "warn" }, f))) : h("div", { class: "sub" }, "Clear: the business checks pass. This is about price and growth, not a failing business."),
       h("div", { class: "note" }, r.checks === "full" ? "Full checks: ROIC, free cash flow, debt, Piotroski, Altman Z, gross margin. Two or more flags = sell warning." : "Checks " + r.checks + "."))));
     sh.append(...growthSection("holdings", r.ticker), ...researchSection("holdings", r.ticker));
-    sh.append(...section("Your position", kv([["First bought", dLong(r.first_buy)], ["vs cost", r.vs_cost_pct == null ? "after next sync" : pct(r.vs_cost_pct)]])));
+    sh.append(...section("Your position", kv([["First bought", dLong(r.first_buy)], ["vs cost", r.cost_note ? r.cost_note : r.vs_cost_pct == null ? "after next sync" : pct(r.vs_cost_pct)]])));
     if (!q) sh.append(h("p", { class: "note" }, "Not on the watchlist, so there's no sticker price or swing setup. Add it to the watchlist for the full score."));
     sh.append(h("a", { class: "btn", href: `https://stockanalysis.com/stocks/${r.ticker.toLowerCase()}/statistics/`, target: "_blank", rel: "noopener" }, "Open statistics ↗"));
   });
