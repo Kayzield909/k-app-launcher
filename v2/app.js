@@ -272,7 +272,7 @@ function viewSignals(v, d) {
       h("div", { class: "bar bg-" + g }), h("b", null, n), h("span", null, GROUP_LABEL[g])));
   }
   const chips = h("div", { class: "chips" });
-  for (const [k, label] of [["all", "All"], ["held", "Holdings"], ["Compulsory products", "Compulsory"], ["AI supply chain", "AI supply chain"], ["Both sides win", "Both sides win"]])
+  for (const [k, label] of [["all", "All"], ["held", "Holdings"], ["Compulsory products", "Compulsory"], ["AI supply chain", "AI supply chain"], ["Both sides win", "Both sides win"], ["Fallen growth", "Fallen growth"]])
     chips.append(h("button", { class: "chip", "aria-pressed": String(state.theme === k), onclick: () => { state.theme = k; render(false); } }, label));
   const mm = marketMoodCard(d.mood && d.mood.market);
   if (mm) v.append(mm);
