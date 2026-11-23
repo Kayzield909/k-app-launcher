@@ -939,6 +939,9 @@ function openStock(ticker) {
       kpi("Buy below", money(r.mos, r.ccy)),
       kpi("Price ÷ sticker", r.price_to_sticker == null ? "n/a" : num(r.price_to_sticker, 2) + "×"),
       kpi("PEG", r.peg == null ? "n/a" : `${num(r.peg, 2)} · ${r.pe_signal}`)));
+    if (r.buy_hold) sh.append(h("div", { class: "card", style: { "margin-top": "10px" } },
+      h("div", { class: "warn" }, `⏸ On hold for buying since ${dLong(r.buy_hold.since)}: ${r.buy_hold.reason}.`),
+      h("div", { class: "note" }, `No buy alerts until: ${r.buy_hold.clear_when}. Holding is fine; adding waits.`)));
     if (r.warnings || r.alerts) sh.append(h("div", { class: "card", style: { "margin-top": "10px" } },
       r.warnings ? h("div", { class: "warn" }, "⚠ " + r.warnings) : null, r.alerts ? h("div", { class: "note" }, r.alerts) : null));
     sh.append(...moodSection(r));
