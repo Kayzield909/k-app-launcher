@@ -25,7 +25,9 @@ const FILES = {
   trimtest: "output/trim_test.json",
   levels: "output/market_levels.json",
   journal: "output/journal.json",
-  proof: "output/proof.json"
+  proof: "output/proof.json",
+  gate: "output/gate.json",
+  diptest: "output/dip_test.json"
 };
 const LINKS = {
   sync: "https://github.com/Kayzield909/aatrox-capital/actions/workflows/t212-sync.yml",
@@ -151,7 +153,9 @@ async function loadAll(token) {
     journal: out.journal ? JSON.parse(out.journal) : null,
     proof: out.proof ? JSON.parse(out.proof) : null,
     trimtest: out.trimtest ? JSON.parse(out.trimtest) : null,
-    levels: out.levels ? JSON.parse(out.levels) : null
+    levels: out.levels ? JSON.parse(out.levels) : null,
+    gate: out.gate ? JSON.parse(out.gate) : null,
+    diptest: out.diptest ? JSON.parse(out.diptest) : null
   };
 }
 async function refresh(manual) {
@@ -284,7 +288,7 @@ function viewSignals(v, d) {
     ...Object.values(ix).map(x => h("div", { class: "hab" }, h("span", null, x.name),
       h("b", { class: x.drawdown_pct <= -10 ? "down" : "faint" }, `${x.drawdown_pct}% from high`),
       h("small", null, x.levels.map(l => `${l.pct}% at ${Math.round(l.level).toLocaleString("en-GB")}` + (x.close <= l.level ? " ✓" : "")).join(" · ")))),
-    h("div", { class: "note" }, "You get an alert with the buy list at each step. Quality 35+ first; nothing under 25.")));
+    h("div", { class: "note" }, "You get an alert with the buy list at each step. Quality 35+ first, and from −10% those can be bought even with the trend gate closed; nothing under 25.")));
   const due = Object.values((d.trims && d.trims.plans) || {}).filter(r => r.plan && (r.plan.stage_now === 1 || r.plan.stage_now === 2 || r.plan.stop_hit));
   if (due.length) v.append(h("div", { class: "card trimdue" }, h("div", { class: "sub" }, "Trims due"),
     ...due.map(r => h("button", { class: "trow", type: "button", onclick: () => openStock(r.ticker) }, logo(r.ticker),
@@ -318,7 +322,7 @@ function viewSignals(v, d) {
         h("div", { class: "px" }, h("b", null, money(r.price, r.ccy)),
           sp ? h("span", { class: sp.chg1d_pct >= 0 ? "up" : "down" }, pct(sp.chg1d_pct, 2)) : null)),
       h("div", { class: "l2" },
-        pill(r.signal),
+        pill(r.signal), gateChip(r.ticker),
         h("span", null, "P/sticker ", h("b", null, r.price_to_sticker == null ? "n/a" : num(r.price_to_sticker, 2) + "×")),
         r.peg != null ? h("span", null, "PEG ", h("b", null, num(r.peg, 2))) : null,
         r.vs_cost_pct != null ? h("span", { class: r.vs_cost_pct >= 0 ? "up" : "down" }, pct(r.vs_cost_pct) + " vs cost") : null,
@@ -460,7 +464,7 @@ function viewHoldings(v, d) {
       L.append(h("button", { class: "row", onclick: () => r.scan === "WATCHLIST" ? openStock(r.ticker) : openHolding(r) },
         h("div", { class: "l1" }, logo(r.ticker), h("span", { class: "tk" }, r.ticker), h("span", { class: "nm" }, r.name || ""),
           h("span", { class: "pill g-" + SCAN_GROUP[r.scan] }, SCAN_LABEL[r.scan])),
-        h("div", { class: "l2" }, r.sector ? h("span", null, r.sector) : null, r.first_buy ? h("span", null, "since " + dShort(r.first_buy) + " " + r.first_buy.slice(0, 4)) : null,
+        h("div", { class: "l2" }, gateChip(r.ticker), r.sector ? h("span", null, r.sector) : null, r.first_buy ? h("span", null, "since " + dShort(r.first_buy) + " " + r.first_buy.slice(0, 4)) : null,
           r.vs_cost_pct != null ? h("span", { class: r.vs_cost_pct >= 0 ? "up" : "down" }, pct(r.vs_cost_pct) + " vs cost") : r.cost_note ? h("span", null, "spin-off, no cost") : null,
           r.scan === "WATCHLIST" ? h("span", null, r.checks.replace("full scorer: ", "")) : null,
           (() => { const q = (d.reviews && d.reviews.scores || {})[r.ticker]; return q && !q.error && r.scan !== "WATCHLIST" ? h("span", { class: "g-" + (GROUP[q.signal] || "hold") }, "Scorecard: " + SIG_LABEL(q.signal)) : null; })(),
@@ -650,11 +654,11 @@ function viewProof(v, d) {
       pc ? h("div", { class: "note" }, `Pie sells, for comparison: ${pc.n} closed, ${pc.win_rate}% winners, median ${sgn(pc.median_ret)}, held a median ${pc.median_days} days. That's mostly the Ark pie.`) : null));
     v.append(h("div", { class: "h2" }, "Entry habits: 12 months after you bought"));
     const hc = h("div", { class: "card" }, h("div", { class: "sub" }, `${j.habit_n} of your own buys had the price history to grade. You followed the swing rule on ${j.rule_followed_pct}% of them.`));
-    const label = { rule: "Swing rule", trend200: "Trend", high52: "Distance from the 52-week high", rsi: "Momentum (RSI)" };
-    for (const k of ["rule", "trend200", "high52", "rsi"]) {
+    const label = { gate: "Trend gate (a rule since 25 Nov 2026)", rule: "Swing rule", trend200: "Trend", high52: "Distance from the 52-week high", rsi: "Momentum (RSI)" };
+    for (const k of ["gate", "rule", "trend200", "high52", "rsi"]) {
       const bs = (j.habits[k] || []).slice().sort((a, b) => (b.median_vs_spx12 ?? -999) - (a.median_vs_spx12 ?? -999));
       if (!bs.length) continue;
-      hc.append(h("div", { class: "faint", style: { "margin-top": "12px", "font-size": ".76rem", "text-transform": "uppercase", "letter-spacing": ".06em" } }, label[k]), ...bs.map(habitRow));
+      hc.append(h("div", { class: "faint", style: { "margin-top": "12px", "font-size": ".76rem", "text-transform": "uppercase", "letter-spacing": ".06em" } }, label[k]), ...bs.map(b => habitRow(b)));
     }
     hc.append(h("div", { class: "note" }, "Small groups (under about 10 buys) can swing a lot; read them as hints."));
     v.append(hc);
@@ -683,6 +687,21 @@ function viewProof(v, d) {
           kpi("Stop on daily closes", `${b.avg_r > 0 ? "+" : ""}${b.avg_r}R`, `${b.win_pct}% winners · ${b.outcomes.stop} stopped of ${b.closed}`),
           kpi("Month-end + disaster stop (the rule now)", `${b.monthly_stop.avg_r > 0 ? "+" : ""}${b.monthly_stop.avg_r}R`, `${b.monthly_stop.win_pct}% winners · ${b.monthly_stop.outcomes.stop} stopped of ${b.monthly_stop.closed}`)),
         h("div", { class: "note" }, "R is the result per trade in units of the risk taken (1R = the distance to the stop). Price-only: past fundamentals weren't stored, so the quality gate isn't in the test. Today's watchlist was chosen with hindsight, so all returns look better than they would have; compare the rule with the baseline, not with zero.")));
+    }
+    const dt = d.diptest, gl = p.gauge_live;
+    if (dt) {
+      const o = dt.test.out, base = o["Any uptrend day (baseline)"], gs = o["Gauge signal, draft"], yb = dt.your_buys, g26 = dt.gate_dips_10pct["2023-26"];
+      const pc = x => Math.round(x * 100) + "%";
+      v.append(h("div", { class: "h2" }, "Trend gate and pullback gauge"), h("div", { class: "card" },
+        h("div", { class: "sub" }, `Backtest ${dLong(dt.as_of)} (${dt.cr}): ${dt.universe}. Tuned on 2019–22, judged on 2023–26.`),
+        h("div", { class: "kpis" },
+          kpi("Your buys, gate closed", pc(yb.gate_closed.beat12), `beat the S&P over 12 months · median ${sgn(yb.gate_closed.med12, 0)}`),
+          kpi("Your buys, gate open", pc(yb.gate_open.beat12), `beat the S&P · median ${sgn(yb.gate_open.med12, 0)}`),
+          kpi("10% dips 2023–26", `${pc(g26.open.beat12)} vs ${pc(g26.closed.beat12)}`, "beat the S&P at 12m, gate open vs closed"),
+          kpi("Gauge vs any uptrend day", `${pc(gs.x60_beat)} vs ${pc(base.x60_beat)}`, "beat the S&P at 60 days, 2023–26")),
+        h("div", { class: "note" }, `So the gate is a rule and the gauge is information only. Waiting for the "first green candle" bought ${dt.trigger_cost_pct}% higher than buying at the dip start, with no better result.`),
+        gl ? h("div", { class: "hab" }, h("span", null, `Live: ${gl.signals.n} gauge signals vs ${gl.baseline.n} gate-open stock-days since ${dLong(gl.since)}`),
+          h("b", { class: "faint" }, "review " + dShort(gl.review)), h("small", null, gl.verdict + " The gauge needs +2 points at 3 months over the baseline to earn a say.")) : null));
     }
     const tt = d.trimtest;
     if (tt && tt.signal) {
@@ -971,7 +990,11 @@ function openStock(ticker) {
       ["Price vs 200-day", r.ma200 ? pct((r.price / r.ma200 - 1) * 100) : null],
       ["50-day vs 200-day", r.ma50 && r.ma200 ? (r.ma50 > r.ma200 ? "Above (uptrend)" : "Below (downtrend)") : null],
       ["RSI (14-day)", rsiTxt],
-      ["Dip rule", r.ma200 && r.price < r.ma200 ? (r.quality >= 25 ? `Below its 200-day average: quality ${r.quality}/40 passes, a dip you can buy` : `Below its 200-day average: quality ${r.quality}/40 is under 25, so don't buy this dip`) : null]])));
+      ["Dip rule", (() => { const g = gateOf(r.ticker); const q = r.quality >= 25;
+        if (g && g.gate_open === false && !g.exempt) return `Trend gate closed: don't buy${q ? "" : ", and quality " + r.quality + "/40 is under 25"}`;
+        if (g && g.exempt) return `Gate closed, but a correction step is on: quality ${r.quality}/40 can be bought from the correction list`;
+        return r.ma200 && r.price < r.ma200 ? (q ? `Below its 200-day average: quality ${r.quality}/40 passes and the trend gate is open` : `Below its 200-day average: quality ${r.quality}/40 is under 25, so don't buy this dip`) : (q ? "Gate open, quality passes" : `Quality ${r.quality}/40 is under 25: don't buy dips`); })()]])));
+    sh.append(...gateSection(r.ticker, r));
     sh.append(...section("Quality", kv([
       ["ROIC", r.roic == null ? null : num(r.roic) + "%"], ["FCF margin", r.fcf_margin == null ? null : num(r.fcf_margin) + "%"],
       ["Debt ÷ FCF", r.debt_fcf == null ? "n/a" : num(r.debt_fcf) + " yrs"], ["Piotroski", r.piotroski == null ? null : r.piotroski + "/9"],
@@ -1019,12 +1042,47 @@ function openHolding(r) {
     sh.append(...section("Red flags", h("div", { class: "card" },
       flags.length ? h("ul", { style: { margin: "0", "padding-left": "18px" } }, flags.map(f => h("li", { class: "warn" }, f))) : h("div", { class: "sub" }, "Clear: the business checks pass. This is about price and growth, not a failing business."),
       h("div", { class: "note" }, r.checks === "full" ? "Full checks: ROIC, free cash flow, debt, Piotroski, Altman Z, gross margin. Two or more flags = sell warning." : "Checks " + r.checks + "."))));
+    sh.append(...gateSection(r.ticker, null));
     sh.append(...growthSection("holdings", r.ticker), ...researchSection("holdings", r.ticker));
     sh.append(...section("Your position", kv([["First bought", dLong(r.first_buy)], ["vs cost", r.cost_note ? r.cost_note : r.vs_cost_pct == null ? "after next sync" : pct(r.vs_cost_pct)]])));
     if (!q) sh.append(h("p", { class: "note" }, "Not on the watchlist, so there's no sticker price or swing setup. Add it to the watchlist for the full score."));
     sh.append(h("a", { class: "btn", href: `https://stockanalysis.com/stocks/${r.ticker.toLowerCase()}/statistics/`, target: "_blank", rel: "noopener" }, "Open statistics ↗"));
   });
 }
+// ---------- trend gate and pullback gauge (V2.5a) ----------
+function gateOf(t) { const g = state.data && state.data.gate; return g && g.stocks ? g.stocks[t] || null : null; }
+function gateChip(t) {
+  const g = gateOf(t);
+  if (!g || g.gate_open !== false) return null;
+  return h("span", { class: "pill " + (g.exempt ? "g-watch" : "g-sell") }, g.exempt ? "Gate closed · exempt" : "Gate closed");
+}
+function gaugeBar(g) {
+  const p = g.parts || {}, w = (g.gate_open ? [40 * (p.depth || 0), 40 * (p.exhaust || 0), 20 * (p.trigger ? 1 : 0)] : [0, 0, 0]);
+  return h("div", { class: "gauge", role: "img", "aria-label": g.gate_open ? `Pullback gauge ${g.gauge} of 100` : "Gauge off: gate closed" },
+    h("i", { class: "gd", style: { width: w[0] + "%" } }), h("i", { class: "ge", style: { width: w[1] + "%" } }), h("i", { class: "gt", style: { width: w[2] + "%" } }));
+}
+function gateSection(t, r) {
+  const g = gateOf(t), G = state.data.gate;
+  if (!g) return [];
+  if (g.gate_open == null) return section("Trend gate", h("div", { class: "card" }, h("div", { class: "sub" }, "Not enough price history: " + g.why + "."),
+    h("div", { class: "note" }, "New listings have no 200-day average. Buying one is a thesis call, not a dip buy.")));
+  const ccy = r && r.ccy, p = g.parts || {};
+  const head = g.gate_open ? h("span", { class: "pill g-buy" }, "Gate open") : g.exempt ? h("span", { class: "pill g-watch" }, "Gate closed · correction exemption") : h("span", { class: "pill g-sell" }, "Gate closed");
+  const card = h("div", { class: "card" },
+    h("div", { class: "sh-q" }, head, h("span", { class: "sub" }, g.gate_since ? `since ${dLong(g.gate_since)}` : "")),
+    h("div", { class: "mnote" }, g.gate_open ? "50-day average is above a rising 200-day, so own-pick and dip buys are allowed (quality 25+ still applies)."
+      : g.exempt ? `${g.why}. The S&P is in a correction step, so quality 35+ can still be bought from the correction plan's list.`
+      : `${g.why}. No own-pick buys and no dip-buy alerts until it reopens; you'll get an alert when it does.`),
+    kv([["50-day average", ccy ? money(g.ma50, ccy) : num(g.ma50, 2)], ["200-day average", `${ccy ? money(g.ma200, ccy) : num(g.ma200, 2)} · ${g.ma200_rising ? "rising" : "falling"}`],
+      ["Prices", g.source === "daily closes" ? "daily closes" : "weekly history plus today's Trading 212 price"]]));
+  if (g.gate_open) card.append(h("div", { class: "faint", style: { "margin-top": "12px", "font-size": ".76rem", "text-transform": "uppercase", "letter-spacing": ".06em" } }, "Pullback gauge · information only"),
+    h("div", { class: "sh-q" }, h("b", null, `${g.gauge}/100`), h("span", { class: "sub" }, g.gauge_label)), gaugeBar(g),
+    h("div", { class: "glegend" }, h("span", null, h("i", { class: "gd" }), `Depth ${p.depth_atr} ATRs`), h("span", null, h("i", { class: "ge" }), `RSI low ${p.rsi_min5}${p.speeding ? ", drops speeding up" : ""}`),
+      h("span", null, h("i", { class: "gt" }), p.trigger ? "Closed above the last 3 days" : "No turn yet")),
+    h("div", { class: "note" }, `Not a buy signal: tested on 138 stocks 2019–26, buying on the gauge did no better than buying on any uptrend day. Tracked live in Proof; review ${dLong(G.review)}.`));
+  return section("Trend gate", card);
+}
+
 // ---------- trim plans: valuation against the stock's own history ----------
 const VB = { "Undervalued": "buy", "Normal": "watch", "Stretched": "trim", "Very stretched": "sell" };
 function trimOf(t) { const p = (state.data.trims || {}).plans || {}; return p[t] || null; }

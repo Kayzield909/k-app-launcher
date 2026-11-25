@@ -345,3 +345,13 @@ textarea.code { width: 100%; margin-top: 6px; padding: 10px; border-radius: 10px
 .take { padding: 8px 0 8px 12px; border-left: 3px solid var(--gold); margin: 8px 0; font-size: .9rem; line-height: 1.4; }
 .tlist { display: grid; grid-template-columns: auto 1fr auto auto; gap: 6px 10px; font-size: .84rem; align-items: center; }
 .tlist .num { text-align: right; font-variant-numeric: tabular-nums; }
+
+/* V2.5a trend gate: pullback gauge (read-only) */
+.gauge { display: flex; height: 10px; border-radius: 5px; background: var(--panel2); overflow: hidden; margin: 8px 0 6px; }
+.gauge i, .glegend i { display: block; height: 100%; }
+.gauge .gd, .glegend .gd { background: var(--gold); opacity: .5; }
+.gauge .ge, .glegend .ge { background: var(--gold); opacity: .78; }
+.gauge .gt, .glegend .gt { background: var(--gold); }
+.glegend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: .74rem; color: var(--muted); }
+.glegend span { display: inline-flex; align-items: center; gap: 6px; }
+.glegend i { width: 9px; height: 9px; border-radius: 2px; }
